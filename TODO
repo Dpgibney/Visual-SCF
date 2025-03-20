@@ -1,0 +1,20 @@
+Need to fork the ryven repo and update the args parsing to get it to work properly
+Need to fix the orbital visualizers (MO and AO) currently if there is only positive nodes they break 
+	Refactor to reduce reusing code!!
+
+Need to test out a "Go" button
+	Could potentially just make a button that returns true when pressed and None otherwise? That way it can send the update connected nodes
+	Can also have it update the button to "Ready" and "Running"?
+
+Need to push this to github at some point
+Need to create the stepwise SCF procedure
+Look into creating an initial tutorial with what you have to see what you're missing
+Update the molecule node to work with charges and non-singlet systems!
+Write a bonding box algorithm to figure out where to sample the isosurface from
+Need to graph the atoms (Should they be different colors based on the atom?)
+Need to set different colors for the positive and negative orbital lobes
+Need to add transparency to the orbitals 
+Make a matrix viewer or mo coefficient viewer
+Update the beta block and the AO viewer to show the orbitals in the correct location and to put in the atoms!
+Add the atomic orbital names to the MO coefficient viewer
+find a way to emphasis that the MO coefficients transform from the atomic orbitals to the Molecular!!!! (Unitary matrix)

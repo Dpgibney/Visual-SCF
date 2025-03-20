@@ -1,0 +1,8 @@
+qt-api: pyside6
+window-theme: dark
+performance-mode: pretty
+window-title: Ryven
+nodes: /home/danny/visual_pyscf/plotting
+nodes: /home/danny/visual_pyscf/pyscf
+animations
+verbose
