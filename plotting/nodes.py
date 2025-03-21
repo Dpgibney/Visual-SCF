@@ -1,6 +1,20 @@
 from ryven.node_env import *
 import numpy as np
 
+def get_atom_surface_points(atoms_coords, axes, size):
+    theta = np.linspace(0, 2 * np.pi, 20)
+    phi = np.linspace(0, np.pi, 10)
+    theta, phi = np.meshgrid(theta, phi)
+    r = 0.2
+    x = r * np.sin(phi) * np.cos(theta)
+    y = r * np.sin(phi) * np.sin(theta)
+    z = r * np.cos(phi)
+    for atom in atoms_coords:
+        x_ = x + atom[0]
+        y_ = y + atom[1]
+        z_ = z + atom[2]
+        axes.plot_surface(x_, y_, z_, color='red', alpha=0.8)
+
 class LinePlotNode(Node):
     """Generates a line graph"""
 
@@ -37,19 +51,7 @@ class MOPlotNode(Node):
     beta = False
 
     def get_atom_surface_points(self, axes, size):
-        theta = np.linspace(0, 2 * np.pi, 20)
-        phi = np.linspace(0, np.pi, 10)
-        theta, phi = np.meshgrid(theta, phi)
-        r = 0.2
-        x = r * np.sin(phi) * np.cos(theta)
-        y = r * np.sin(phi) * np.sin(theta)
-        z = r * np.cos(phi)
-        for atom in self.input(0).payload.atom_coords():
-            x_ = x + atom[0]
-            y_ = y + atom[1]
-            z_ = z + atom[2]
-            axes.plot_surface(x_, y_, z_, color='red', alpha=0.8)
-            
+        get_atom_surface_points(self.input(0).payload.atom_coords(), axes, size)
 
     def inputs_ready(self):
         val =  all(hasattr(self.input(i), 'payload') for i in range(len(self.inputs)))
@@ -158,18 +160,7 @@ class AOPlotNode(Node):
         return all(self.input(i) is not None for i in range(len(self.inputs)))
 
     def get_atom_surface_points(self, axes, size):
-        theta = np.linspace(0, 2 * np.pi, 20)
-        phi = np.linspace(0, np.pi, 10)
-        theta, phi = np.meshgrid(theta, phi)
-        r = 0.2
-        x = r * np.sin(phi) * np.cos(theta)
-        y = r * np.sin(phi) * np.sin(theta)
-        z = r * np.cos(phi)
-        for atom in self.input(0).payload.atom_coords():
-            x_ = x + atom[0]
-            y_ = y + atom[1]
-            z_ = z + atom[2]
-            axes.plot_surface(x_, y_, z_, color='red', alpha=0.8)
+        get_atom_surface_points(self.input(0).payload.atom_coords(), axes, size)
 
     def get_isosurface(self,orbital,iso_val,bnds,beta=False):
         max_ = max(bnds)
