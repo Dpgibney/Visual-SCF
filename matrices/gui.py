@@ -42,7 +42,6 @@ QTextEdit{{
         if m is None:
             self.setText('')
             return
-        print("matrix: ",m)
 
         longest_exp_length = -1
         lines = []
@@ -79,7 +78,6 @@ QTextEdit{{
 
             for idx, row in enumerate(matrix[0]):
                 lines.append(self.format_row_to_str(row, longest_exp_length, matrix[1][idx]))
-            print(lines)
 
             length = len(lines[0])
             if length >= 12:

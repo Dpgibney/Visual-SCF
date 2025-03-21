@@ -43,7 +43,6 @@ class MolInputWidget(NodeMainWidget,QWidget):#,FigureCanvasQTAgg):
     def value_changed(self, val):
         # updates the node input this widget is attached to
         self.update_node_input(Data(val))
-        print("hello")
         self.update_node()
     
     def get_state(self) -> dict:
@@ -55,17 +54,14 @@ class MolInputWidget(NodeMainWidget,QWidget):#,FigureCanvasQTAgg):
         self.setValue(state['value'])
 
     def atom_changed(self):
-        print("hello from atom_changed")
         self.node.atom = self.atomsText.toPlainText()
         self.update_node()
 
     def basis_changed(self):
-        print("hello from basis_changed")
         self.node.basis = self.basisText.toPlainText()
         self.update_node()
 
     def enabled_changed(self):
-        print("Hello from enabled_changed")
         self.node.enabled = self.sender().isChecked()
         self.update_node()
 
@@ -99,7 +95,6 @@ class GuessWidget(NodeMainWidget,QComboBox):
         self.currentTextChanged.connect(self.update_guess)
 
     def update_guess(self, guess):
-        print(guess)
         self.node.update_guess(guess)
 
 @node_gui(nodes.MolNode)

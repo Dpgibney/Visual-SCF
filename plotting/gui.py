@@ -125,12 +125,9 @@ class SurfacePlotWidget(NodeMainWidget, QWidget):
         self.setLayout(vlayout)
 
     def update_orbitallist(self, num_orbs, num_electrons, ao_labels=None):
-        print("in update_orbitallist")
         self.orbitallistalpha.clear()
         self.orbitallistbeta.clear()
         #If ao_labels is none then it is the MO plotting
-        print("ao_labels",ao_labels)
-        print(ao_labels is not None)
         if ao_labels is not None:
             for label in ao_labels:
                 item = QListWidgetItem(f"{label}")
@@ -188,21 +185,17 @@ class SurfacePlotWidget(NodeMainWidget, QWidget):
 
     def add_beta(self):
         if self.orbitallistbeta.visibleRegion().isEmpty():
-           print("add beta")
            self.orbitallistbeta.show()
            self.canvas_beta.show()
            self.beta_label.show()
 
     def remove_beta(self):
         if not self.orbitallistbeta.visibleRegion().isEmpty():
-           print("remove beta")
            self.orbitallistbeta.hide()
            self.canvas_beta.hide()
            self.beta_label.hide()
 
     def update_plot_alpha(self):
-        print("Updating 3d plot")
-        print(self.orbitallistalpha.currentRow())
         bnds = get_bounding_box(self.node.input(0).payload.atom_coords(),1.5)
         if self.node.inputs_ready():
             alpha = self.node.get_isosurface(self.orbitallistalpha.currentRow(),float(self.lineedit.text()),bnds=bnds)
@@ -219,7 +212,6 @@ class SurfacePlotWidget(NodeMainWidget, QWidget):
                 self.canvas_alpha.draw()
 
     def update_plot_beta(self):
-        print("Updating beta orbitals")
         bnds = get_bounding_box(self.node.input(0).payload.atom_coords(),1.5)
         if self.node.inputs_ready():
             beta = self.node.get_isosurface(self.orbitallistbeta.currentRow(),float(self.lineedit.text()),bnds=bnds,beta=True)
@@ -264,7 +256,6 @@ class LinePlotWidget(NodeMainWidget,QWidget):
         self.setLayout(layout)
 
     def update_plot(self):
-        print("updating graph")
         x = []
         y = []
         for i in range(len(self.node.inputs)):

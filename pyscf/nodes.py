@@ -26,8 +26,6 @@ class MolNode(Node):
         self.set_output_val(0,
             MolData(mol)
         )
-        print("Inupdate event")
-        print(MolData(mol))
 
     def have_gui(self):
         return hasattr(self, 'gui')
@@ -51,7 +49,6 @@ class FockNode(Node):
 
     def update_mf(self,xc=None):
         #xc = self.gui.xcbox.toPlainText()
-        print(xc)
         if not self.inputs_ready():
             return
 
@@ -122,7 +119,6 @@ class GetMOCoeffNode(Node):
         idx = e.argsort()
         e = e[idx]
         c = c[idx]
-        print("eigenvalues: ",e)
         #idx = argmax(abs(c.real), axis=0)
         #c[:,c[idx,arange(len(e))].real<0] *= -1
         #c_idx 
@@ -156,7 +152,6 @@ class Guess1RDMNode(Node):
         mol = self.input(0).payload
         mf = scf.RHF(mol)
         rdm1 = mf.get_init_guess(mol, guess)
-        print(rdm1)
         self.set_output_val(0, Data(rdm1))
 
     def update_event(self, inp=-1):
@@ -228,13 +223,10 @@ class RHFNode(Node):
     def update_event(self, inp=-1):
         mf = scf.RHF(self.input(0).payload)
         mf.kernel()
-        print("1RDM: ",mf.make_rdm1())
-        print("Fock: ",mf.get_fock())
 
         self.set_output_val(0,
             Data(mf.mo_coeff)
         )
-        print(mf.mo_coeff)
 
 class UHFNode(Node):
     title = 'UHF'
@@ -251,7 +243,6 @@ class UHFNode(Node):
         self.set_output_val(0,
             Data(mf.mo_coeff)
         )
-        print("MO coeff",mf.mo_coeff)
 
 class RKSNode(Node):
     title = 'RKS-DFT'

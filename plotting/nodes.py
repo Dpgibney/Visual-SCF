@@ -55,12 +55,10 @@ class MOPlotNode(Node):
 
     def inputs_ready(self):
         val =  all(hasattr(self.input(i), 'payload') for i in range(len(self.inputs)))
-        print("inputs ready value",val)
         return val
 
     def get_isosurface(self,orbital,iso_val,bnds,beta=False):
         from skimage import measure
-        print("Bounds: ",bnds)
         max_ = max(bnds)
         min_ = min(bnds)
         X = np.linspace(min_,max_,50)
@@ -70,10 +68,8 @@ class MOPlotNode(Node):
         spacing = (spacing,spacing,spacing)
         X, Y, Z = np.meshgrid(X,Y,Z)
         coords = np.vstack([X.ravel(),Y.ravel(),Z.ravel()]).T
-        print("Coords: ",coords)
         mol = self.input(0).payload
         ao = mol.eval_gto('GTOval', coords)
-        print("ao: ",ao)
         mo_coeff = self.input(1).payload
 
         if orbital >= 0:
@@ -83,15 +79,10 @@ class MOPlotNode(Node):
                 else:
                     orbital_coeff_alpha = mo_coeff[:, orbital]
 
-                print("orbital coefficient size: ",orbital_coeff_alpha.shape)
-                print("ao shape: ",ao.shape)
-
                 mo = np.einsum('i,ki->k',orbital_coeff_alpha,ao)
                 mo_values_grid = mo.reshape(X.shape)
-                print("mo_values_grid: ",mo_values_grid)
 
                 pos_verts, pos_faces, _ ,_ = measure.marching_cubes(mo_values_grid,iso_val,spacing=spacing)
-                print("pos_verts: ",pos_verts)
                 try:
                     neg_verts, neg_faces, _ ,_ = measure.marching_cubes(mo_values_grid,-iso_val,spacing=spacing)
                     tmp = neg_verts[:,0] + min_
@@ -154,7 +145,8 @@ class AOPlotNode(Node):
 
     title = "Atomic Orbital Plotter"
     init_inputs = [
-            NodeInputType()]
+            NodeInputType(label="Molecule")
+            ]
 
     def inputs_ready(self):
         return all(self.input(i) is not None for i in range(len(self.inputs)))
@@ -181,8 +173,6 @@ class AOPlotNode(Node):
             coords = np.vstack([X.ravel(),Y.ravel(),Z.ravel()]).T
             from pyscf import dft
             ao = mol.eval_gto('GTOval', coords)
-            print("orbital coeff shape: ",orbital_coeff.shape)
-            print("AO shape:",ao.shape)
             mo = np.einsum('i,ki->k',orbital_coeff,ao)
             #for i in range(len(mo)):
             #    if mo[i] < 0:
@@ -211,7 +201,6 @@ class AOPlotNode(Node):
         if not self.inputs_ready():
             return
         if self.have_gui():
-            print("in ao node")
             self.gui.update_orbitallist(0,0,self.input(0).payload.ao_labels())
             self.gui.update_plot()
 
