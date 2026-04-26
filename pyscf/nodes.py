@@ -22,13 +22,27 @@ class MolNode(Node):
             return
 
         mol = gto.M(atom=self.atom,basis=self.basis,verbose=5)
-        
+
         self.set_output_val(0,
             MolData(mol)
         )
 
     def have_gui(self):
         return hasattr(self, 'gui')
+
+    def get_state(self):
+        return {'atom': self.atom, 'basis': self.basis, 'enabled': self.enabled}
+
+    def set_state(self, data, version):
+        self.atom = data.get('atom', '')
+        self.basis = data.get('basis', '')
+        self.enabled = data.get('enabled', False)
+
+    def rebuilt(self):
+        # connections are now in place; if the user saved with enabled=True,
+        # rebuild the molecule so the rest of the flow reanimates.
+        if self.enabled:
+            self.update()
 
 class FockNode(Node):
     """Returns the fock matrix from the given 1-RDM"""
@@ -43,21 +57,24 @@ class FockNode(Node):
 
     def __init__(self,params):
         super().__init__(params)
-        from pyscf import scf, dft
-        #self.mf = scf.RHF(mol)
-        self.xc = None
+        self.xc = ''  # empty string = HF; any non-empty = DFT XC functional name
 
-    def update_mf(self,xc=None):
-        #xc = self.gui.xcbox.toPlainText()
+    def update_mf(self, xc):
+        # called by the widget when the XC text changes
+        self.xc = xc
+        self.update_event()
+
+    def inputs_ready(self):
+        return all(hasattr(self.input(i), 'payload') for i in range(len(self.inputs)))
+
+    def update_event(self, inp=-1):
         if not self.inputs_ready():
             return
-
-        self.xc = xc
 
         mol = self.input(0).payload
         dm = self.input(1).payload
 
-        if xc is not None:
+        if self.xc:
             self.mf = dft.RKS(mol)
             self.mf.xc = self.xc
         else:
@@ -66,32 +83,19 @@ class FockNode(Node):
         hcore = self.mf.get_hcore()
         veff = self.mf.get_veff(mol, dm)
         f = hcore + veff
+        e_tot = self.mf.energy_tot(dm, hcore, veff)
 
-        e_tot = self.mf.energy_tot(dm,hcore,veff)
-        
-        self.set_output_val(0,
-            Data(f)
-        )
-        self.set_output_val(1,
-            Data(e_tot)
-        )
-
-    def inputs_ready(self):
-        val =  all(hasattr(self.input(i), 'payload') for i in range(len(self.inputs)))
-        return val
-
-    def update_event(self, inp=-1):
-        if not self.inputs_ready():
-            return
-
-        self.update_mf(self.xc)
-
-        #self.set_output_val(0,
-        #    Data(dm=self.input(1).payload)
-        #)
+        self.set_output_val(0, Data(f))
+        self.set_output_val(1, Data(e_tot))
 
     def have_gui(self):
         return hasattr(self, 'gui')
+
+    def get_state(self):
+        return {'xc': self.xc}
+
+    def set_state(self, data, version):
+        self.xc = data.get('xc', '')
 
 class GetMOCoeffNode(Node):
     """Diagonalizes the Fock Matrix and returns the eigenvectors sorted"""

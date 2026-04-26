@@ -14,24 +14,27 @@ class MolInputWidget(NodeMainWidget,QWidget):#,FigureCanvasQTAgg):
     def __init__(self, params):
         NodeMainWidget.__init__(self, params)
         QWidget.__init__(self)
-        #self.resize(100,200)
 
         layout = QVBoxLayout()
-        #self.setFixedWidth(400)
-        #self.setFixedHeight(400)
 
         self.atomsText = QTextEdit()
         self.atomsText.setFixedWidth(200)
         self.atomsText.setFixedHeight(200)
         self.atomsText.setPlaceholderText("""Atomic coordinates go here\nH 0 0 0;\nH 1 0 0""")
-        self.atomsText.textChanged.connect(self.atom_changed)
         self.basisText = QTextEdit()
         self.basisText.setFixedWidth(200)
         self.basisText.setFixedHeight(50)
         self.basisText.setPlaceholderText("""Basis set name goes here\nsto-3g, cc-pvdz, def2-svp...""")
-        self.basisText.textChanged.connect(self.basis_changed)
-
         self.enable = QCheckBox("Enabled?")
+
+        # populate from node state before wiring signals so loaded projects
+        # don't fire spurious update_events during initial population.
+        self.atomsText.setPlainText(self.node.atom)
+        self.basisText.setPlainText(self.node.basis)
+        self.enable.setChecked(self.node.enabled)
+
+        self.atomsText.textChanged.connect(self.atom_changed)
+        self.basisText.textChanged.connect(self.basis_changed)
         self.enable.toggled.connect(self.enabled_changed)
 
         layout.addWidget(self.atomsText)
@@ -39,19 +42,6 @@ class MolInputWidget(NodeMainWidget,QWidget):#,FigureCanvasQTAgg):
         layout.addWidget(self.enable)
 
         self.setLayout(layout)
-
-    def value_changed(self, val):
-        # updates the node input this widget is attached to
-        self.update_node_input(Data(val))
-        self.update_node()
-    
-    def get_state(self) -> dict:
-        # return the state of the widget
-        return {'value': self.value()}
-    
-    def set_state(self, state: dict):
-        # set the state of the widget
-        self.setValue(state['value'])
 
     def atom_changed(self):
         self.node.atom = self.atomsText.toPlainText()
@@ -77,6 +67,7 @@ class FockWidget(NodeMainWidget,QWidget):
         self.xclabel = QLabel('XC Functional')
         self.xcbox = QTextEdit()
         self.xcbox.setPlaceholderText("Blank for HF")
+        self.xcbox.setPlainText(self.node.xc)
         self.xcbox.textChanged.connect(self.update_mf)
         layout.addWidget(self.xclabel)
         layout.addWidget(self.xcbox)

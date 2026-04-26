@@ -66,6 +66,10 @@ class SurfacePlotWidget(NodeMainWidget, QWidget):
         
         self.orbitallistalpha = QListWidget()
         self.orbitallistbeta = QListWidget()
+        # set by set_state during project load; consumed once by the next
+        # update_orbitallist call (-1 means "no pending value, keep whatever's selected").
+        self._pending_alpha_row = -1
+        self._pending_beta_row = -1
         self.orbitallistalpha.currentItemChanged.connect(self.update_plot_alpha)
         self.orbitallistbeta.currentItemChanged.connect(self.update_plot_beta)
         self.orbitallistbeta.hide()
@@ -98,7 +102,35 @@ class SurfacePlotWidget(NodeMainWidget, QWidget):
 
         self.setLayout(vlayout)
 
+    def get_state(self):
+        return {
+            'iso': self.lineedit.text(),
+            'alpha_row': self.orbitallistalpha.currentRow(),
+            'beta_row': self.orbitallistbeta.currentRow(),
+            'beta_visible': self.canvas_beta.isVisibleTo(self),
+        }
+
+    def set_state(self, data):
+        iso = data.get('iso')
+        if iso:
+            try:
+                self.slider.setValue(int(round(float(iso) * 1000)))
+                self.lineedit.setText(iso)
+            except ValueError:
+                pass
+        self._pending_alpha_row = data.get('alpha_row', -1)
+        self._pending_beta_row = data.get('beta_row', -1)
+        if data.get('beta_visible'):
+            self.add_beta()
+
     def update_orbitallist(self, num_orbs, num_electrons, ao_labels=None):
+        # Preserve current selection across re-population (SCF iterations,
+        # basis changes, etc). A pending row from set_state takes precedence
+        # the first time it's available.
+        prev_alpha = self._pending_alpha_row if self._pending_alpha_row >= 0 else self.orbitallistalpha.currentRow()
+        prev_beta = self._pending_beta_row if self._pending_beta_row >= 0 else self.orbitallistbeta.currentRow()
+        self._pending_alpha_row = -1
+        self._pending_beta_row = -1
         self.orbitallistalpha.clear()
         self.orbitallistbeta.clear()
         #If ao_labels is none then it is the MO plotting
@@ -136,8 +168,15 @@ class SurfacePlotWidget(NodeMainWidget, QWidget):
                 else:
                     item = QListWidgetItem(f"Luno +{i-num_electrons[1]}")
                     self.orbitallistbeta.addItem(item)
-        self.orbitallistalpha.setCurrentRow(0)
-        self.orbitallistbeta.setCurrentRow(0)
+        self._restore_row(self.orbitallistalpha, prev_alpha)
+        self._restore_row(self.orbitallistbeta, prev_beta)
+
+    @staticmethod
+    def _restore_row(list_widget, row):
+        n = list_widget.count()
+        if n == 0:
+            return
+        list_widget.setCurrentRow(row if 0 <= row < n else 0)
 
 
 
@@ -246,18 +285,6 @@ class LinePlotWidget(NodeMainWidget,QWidget):
         self.sc.ax.cla()
         self.sc.ax.plot(x,y)
         self.sc.draw()
-    
-    def value_changed(self, val):
-        # updates the node input this widget is attached to
-        self.update_node_input(Data(val))
-    
-    def get_state(self) -> dict:
-        # return the state of the widget
-        return {'value': self.value()}
-    
-    def set_state(self, state: dict):
-        # set the state of the widget
-        self.setValue(state['value'])
 
 
 @node_gui(nodes.LinePlotNode)
