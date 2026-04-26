@@ -11,38 +11,55 @@ class MolNode(Node):
     tags = ['Integrals']
     init_outputs = [NodeOutputType(label='Molecule')]
 
-    def __init__(self,params):
+    def __init__(self, params):
         super().__init__(params)
-        self.atom=""
-        self.basis=""
-        self.enabled = False
+        self.atom = ""
+        self.basis = ""
+        self.charge = 0
+        self.spin = 0  # 2S = nα - nβ; 0=singlet, 1=doublet, 2=triplet, ...
+        # tracks whether the current state has been built at least once.
+        # set by build(); cleared on first text/spin/charge change so we
+        # know whether rebuilt() should auto-fire on project load.
+        self._built = False
+
+    def build(self):
+        """Build the molecule and propagate. Called by the Build button or rebuilt()."""
+        if not self.atom or not self.basis:
+            return
+        mol = gto.M(atom=self.atom, basis=self.basis,
+                    charge=self.charge, spin=self.spin, verbose=5)
+        self._built = True
+        self.set_output_val(0, MolData(mol))
 
     def update_event(self, inp=-1):
-        if not self.enabled:
-            return
-
-        mol = gto.M(atom=self.atom,basis=self.basis,verbose=5)
-
-        self.set_output_val(0,
-            MolData(mol)
-        )
+        # called when the Build button fires self.update()
+        self.build()
 
     def have_gui(self):
         return hasattr(self, 'gui')
 
     def get_state(self):
-        return {'atom': self.atom, 'basis': self.basis, 'enabled': self.enabled}
+        return {
+            'atom': self.atom,
+            'basis': self.basis,
+            'charge': self.charge,
+            'spin': self.spin,
+            'built': self._built,
+        }
 
     def set_state(self, data, version):
         self.atom = data.get('atom', '')
         self.basis = data.get('basis', '')
-        self.enabled = data.get('enabled', False)
+        self.charge = data.get('charge', 0)
+        self.spin = data.get('spin', 0)
+        # back-compat: old projects used 'enabled' as the auto-rebuild flag.
+        self._built = data.get('built', data.get('enabled', False))
 
     def rebuilt(self):
-        # connections are now in place; if the user saved with enabled=True,
-        # rebuild the molecule so the rest of the flow reanimates.
-        if self.enabled:
-            self.update()
+        # connections are now in place; if the user saved with the molecule
+        # already built, rebuild it so the rest of the flow reanimates.
+        if self._built:
+            self.build()
 
 class FockNode(Node):
     """Returns the fock matrix from the given 1-RDM"""
@@ -272,6 +289,72 @@ class UKSNode(Node):
         dm = (dm_alpha,dm_beta)
         mf.kernel(dm)
 
+
+class SCFStepNode(Node):
+    """Single-step iterator that closes the SCF loop.
+
+    Wire Guess1RDM → Initial 1-RDM, and Make1RDM → New 1-RDM (the feedback
+    edge). The Current 1-RDM output feeds the Fock node. The Reset button
+    re-emits the initial guess and zeros the step counter; Step emits the
+    most recent New 1-RDM and increments the counter."""
+
+    title = 'SCF Step'
+    tags = ['1-RDM']
+    init_inputs = [
+        NodeInputType(label='Initial 1-RDM'),
+        NodeInputType(label='New 1-RDM'),
+    ]
+    init_outputs = [NodeOutputType(label='Current 1-RDM')]
+
+    def __init__(self, params):
+        super().__init__(params)
+        self._has_current = False
+        self._step_count = 0
+
+    def reset(self):
+        if not self._port_ready(0):
+            return
+        self._step_count = 0
+        self._has_current = True
+        self.set_output_val(0, Data(self.input(0).payload))
+        self._notify_gui()
+
+    def step(self):
+        if not self._port_ready(1):
+            return
+        self._step_count += 1
+        self._has_current = True
+        self.set_output_val(0, Data(self.input(1).payload))
+        self._notify_gui()
+
+    def _port_ready(self, idx):
+        port = self.input(idx)
+        return port is not None and hasattr(port, 'payload')
+
+    def _notify_gui(self):
+        if hasattr(self, 'gui'):
+            self.gui.update_step_count(self._step_count)
+
+    def update_event(self, inp=-1):
+        # Auto-Reset on the first arrival of an Initial 1-RDM. Subsequent
+        # changes on either input are silently absorbed: New 1-RDM arrivals
+        # are the feedback edge (would cause infinite recursion if propagated),
+        # and re-fires of Initial don't reset accidentally — the user must
+        # click Reset to start over.
+        if inp == 0 and not self._has_current:
+            self.reset()
+
+    def have_gui(self):
+        return hasattr(self, 'gui')
+
+    def get_state(self):
+        return {'step_count': self._step_count, 'has_current': self._has_current}
+
+    def set_state(self, data, version):
+        self._step_count = data.get('step_count', 0)
+        self._has_current = data.get('has_current', False)
+
+
 export_nodes([
     MolNode,
     RHFNode,
@@ -282,6 +365,7 @@ export_nodes([
     Guess1RDMNode,
     GetMOCoeffNode,
     Make1RDMNode,
+    SCFStepNode,
 ])
 
 

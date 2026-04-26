@@ -1,58 +1,82 @@
-from qtpy.QtWidgets import QSlider, QWidget, QVBoxLayout, QTextEdit, QCheckBox, QTextEdit, QLabel, QHBoxLayout, QComboBox
-import qtpy.QtWidgets
-from qtpy.QtCore import Qt
-
+from qtpy.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTextEdit,
+                            QLabel, QComboBox, QSpinBox, QPushButton)
 
 from ryven.gui_env import *
 
 from . import nodes
 
-class MolInputWidget(NodeMainWidget,QWidget):#,FigureCanvasQTAgg):
-    """a standard QtTextEdit widget, which updates the node
-    input it is attached to, every time the input"""
-    
+class MolInputWidget(NodeMainWidget, QWidget):
+    """Atom geometry, basis set, charge, and spin (2S) for a Molecule node.
+    Changes are staged on the node; clicking Build commits and propagates."""
+
     def __init__(self, params):
         NodeMainWidget.__init__(self, params)
         QWidget.__init__(self)
 
         layout = QVBoxLayout()
 
+        layout.addWidget(QLabel('Atoms'))
         self.atomsText = QTextEdit()
-        self.atomsText.setFixedWidth(200)
-        self.atomsText.setFixedHeight(200)
-        self.atomsText.setPlaceholderText("""Atomic coordinates go here\nH 0 0 0;\nH 1 0 0""")
+        self.atomsText.setFixedSize(220, 150)
+        self.atomsText.setPlaceholderText("H 0 0 0;\nH 0 0 0.74")
+        layout.addWidget(self.atomsText)
+
+        layout.addWidget(QLabel('Basis'))
         self.basisText = QTextEdit()
-        self.basisText.setFixedWidth(200)
-        self.basisText.setFixedHeight(50)
-        self.basisText.setPlaceholderText("""Basis set name goes here\nsto-3g, cc-pvdz, def2-svp...""")
-        self.enable = QCheckBox("Enabled?")
+        self.basisText.setFixedSize(220, 40)
+        self.basisText.setPlaceholderText("sto-3g, cc-pvdz, def2-svp, ...")
+        layout.addWidget(self.basisText)
+
+        charge_row = QHBoxLayout()
+        charge_row.addWidget(QLabel('Charge'))
+        self.chargeBox = QSpinBox()
+        self.chargeBox.setRange(-10, 10)
+        charge_row.addWidget(self.chargeBox)
+        charge_row.addStretch()
+        layout.addLayout(charge_row)
+
+        spin_row = QHBoxLayout()
+        spin_label = QLabel('Spin (2S)')
+        spin_label.setToolTip("2S = nα − nβ. 0 = singlet, 1 = doublet, 2 = triplet, ...")
+        spin_row.addWidget(spin_label)
+        self.spinBox = QSpinBox()
+        self.spinBox.setRange(0, 20)
+        self.spinBox.setToolTip("2S = nα − nβ. 0 = singlet, 1 = doublet, 2 = triplet, ...")
+        spin_row.addWidget(self.spinBox)
+        spin_row.addStretch()
+        layout.addLayout(spin_row)
+
+        self.buildButton = QPushButton('Build')
+        layout.addWidget(self.buildButton)
 
         # populate from node state before wiring signals so loaded projects
-        # don't fire spurious update_events during initial population.
+        # don't see spurious change events during initial population.
         self.atomsText.setPlainText(self.node.atom)
         self.basisText.setPlainText(self.node.basis)
-        self.enable.setChecked(self.node.enabled)
+        self.chargeBox.setValue(self.node.charge)
+        self.spinBox.setValue(self.node.spin)
 
-        self.atomsText.textChanged.connect(self.atom_changed)
-        self.basisText.textChanged.connect(self.basis_changed)
-        self.enable.toggled.connect(self.enabled_changed)
-
-        layout.addWidget(self.atomsText)
-        layout.addWidget(self.basisText)
-        layout.addWidget(self.enable)
+        self.atomsText.textChanged.connect(self._atom_changed)
+        self.basisText.textChanged.connect(self._basis_changed)
+        self.chargeBox.valueChanged.connect(self._charge_changed)
+        self.spinBox.valueChanged.connect(self._spin_changed)
+        self.buildButton.clicked.connect(self._build_clicked)
 
         self.setLayout(layout)
 
-    def atom_changed(self):
+    def _atom_changed(self):
         self.node.atom = self.atomsText.toPlainText()
-        self.update_node()
 
-    def basis_changed(self):
+    def _basis_changed(self):
         self.node.basis = self.basisText.toPlainText()
-        self.update_node()
 
-    def enabled_changed(self):
-        self.node.enabled = self.sender().isChecked()
+    def _charge_changed(self, val):
+        self.node.charge = val
+
+    def _spin_changed(self, val):
+        self.node.spin = val
+
+    def _build_clicked(self):
         self.update_node()
 
     
@@ -91,6 +115,30 @@ class GuessWidget(NodeMainWidget,QComboBox):
     def update_guess(self, guess):
         self.node.update_guess(guess)
 
+class SCFStepWidget(NodeMainWidget, QWidget):
+    def __init__(self, params):
+        NodeMainWidget.__init__(self, params)
+        QWidget.__init__(self)
+
+        layout = QVBoxLayout()
+        self.step_label = QLabel(f'Step: {self.node._step_count}')
+        layout.addWidget(self.step_label)
+
+        btn_row = QHBoxLayout()
+        self.reset_btn = QPushButton('Reset')
+        self.step_btn = QPushButton('Step')
+        self.reset_btn.clicked.connect(self.node.reset)
+        self.step_btn.clicked.connect(self.node.step)
+        btn_row.addWidget(self.reset_btn)
+        btn_row.addWidget(self.step_btn)
+        layout.addLayout(btn_row)
+
+        self.setLayout(layout)
+
+    def update_step_count(self, n):
+        self.step_label.setText(f'Step: {n}')
+
+
 @node_gui(nodes.MolNode)
 class MolNodeGui(NodeGUI):
     main_widget_class = MolInputWidget
@@ -109,3 +157,11 @@ class FockNodeGui(NodeGUI):
 @node_gui(nodes.Guess1RDMNode)
 class GuessNodeGui(NodeGUI):
     main_widget_class = GuessWidget
+
+@node_gui(nodes.SCFStepNode)
+class SCFStepNodeGui(NodeGUI):
+    main_widget_class = SCFStepWidget
+    main_widget_pos = 'below ports'
+
+    def update_step_count(self, n):
+        self.main_widget().update_step_count(n)
