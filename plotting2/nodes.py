@@ -184,6 +184,9 @@ class PrintNode(Node):
     def update_event(self, inp=-1):
         print(self.input(0))
 
+class plotting(Node):
+    pass
+
 
 export_nodes([
     LinePlotNode,
