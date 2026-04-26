@@ -18,35 +18,9 @@ mplstyle.use('fast')
 import numpy as np
 
 def get_bounding_box(atom_coords, buffer):
-    x_min = atom_coords[0,0]
-    x_max = atom_coords[0,0]
-    y_min = atom_coords[0,1]
-    y_max = atom_coords[0,1]
-    z_min = atom_coords[0,2]
-    z_max = atom_coords[0,2]
-
-    for i in range(1,len(atom_coords[0])-1):
-        if atom_coords[i,0] > x_max:
-            x_max = atom_coords[i,0]
-        if atom_coords[i,0] < x_min:
-            x_min = atom_coords[i,0]
-        if atom_coords[i,1] > y_max:
-            y_max = atom_coords[i,1]
-        if atom_coords[i,1] < y_min:
-            y_min = atom_coords[i,1]
-        if atom_coords[i,2] > z_max:
-            z_max = atom_coords[i,2]
-        if atom_coords[i,2] < z_min:
-            z_min = atom_coords[i,2]
-
-    x_min -= buffer
-    x_max += buffer
-    y_min -= buffer
-    y_max += buffer
-    z_min -= buffer
-    z_max += buffer
-
-    return (x_min, x_max, y_min, y_max, z_min, z_max)
+    mins = atom_coords.min(axis=0) - buffer
+    maxs = atom_coords.max(axis=0) + buffer
+    return (mins[0], maxs[0], mins[1], maxs[1], mins[2], maxs[2])
 
 
 class MplCanvas(FigureCanvas):
@@ -195,36 +169,42 @@ class SurfacePlotWidget(NodeMainWidget, QWidget):
            self.canvas_beta.hide()
            self.beta_label.hide()
 
-    def update_plot_alpha(self):
-        bnds = get_bounding_box(self.node.input(0).payload.atom_coords(),1.5)
-        if self.node.inputs_ready():
-            alpha = self.node.get_isosurface(self.orbitallistalpha.currentRow(),float(self.lineedit.text()),bnds=bnds)
-            if alpha is not None:
-                self.axes_alpha.cla()
-                self.axes_alpha.plot_trisurf(alpha[0][:, 0], alpha[0][:, 1], alpha[1], alpha[0][:,2],color='green', edgecolor='none',alpha=0.4)
-                if alpha[2] is not None:
-                    self.axes_alpha.plot_trisurf(alpha[2][:, 0], alpha[2][:, 1], alpha[3], alpha[2][:,2],color='blue', edgecolor='none',alpha=0.4)
-                self.axes_alpha.set_xlim((max(bnds),min(bnds)))
-                self.axes_alpha.set_ylim((max(bnds),min(bnds)))
-                self.axes_alpha.set_zlim((max(bnds),min(bnds)))
-                self.node.get_atom_surface_points(self.axes_alpha,1)
+    def _draw_lobes(self, axes, surface, bnds):
+        axes.cla()
+        pos_verts, pos_faces, neg_verts, neg_faces = surface
+        if pos_verts is not None:
+            axes.plot_trisurf(pos_verts[:, 0], pos_verts[:, 1], pos_faces, pos_verts[:, 2],
+                              color='green', edgecolor='none', alpha=0.4)
+        if neg_verts is not None:
+            axes.plot_trisurf(neg_verts[:, 0], neg_verts[:, 1], neg_faces, neg_verts[:, 2],
+                              color='blue', edgecolor='none', alpha=0.4)
+        axes.set_xlim((max(bnds), min(bnds)))
+        axes.set_ylim((max(bnds), min(bnds)))
+        axes.set_zlim((max(bnds), min(bnds)))
 
-                self.canvas_alpha.draw()
+    def update_plot_alpha(self):
+        if not self.node.inputs_ready():
+            return
+        bnds = get_bounding_box(self.node.input(0).payload.atom_coords(), 1.5)
+        alpha = self.node.get_isosurface(self.orbitallistalpha.currentRow(),
+                                         float(self.lineedit.text()), bnds=bnds)
+        if alpha is None:
+            return
+        self._draw_lobes(self.axes_alpha, alpha, bnds)
+        self.node.get_atom_surface_points(self.axes_alpha, 1)
+        self.canvas_alpha.draw()
 
     def update_plot_beta(self):
-        bnds = get_bounding_box(self.node.input(0).payload.atom_coords(),1.5)
-        if self.node.inputs_ready():
-            beta = self.node.get_isosurface(self.orbitallistbeta.currentRow(),float(self.lineedit.text()),bnds=bnds,beta=True)
-            if beta is not None:
-                self.axes_beta.cla()
-                self.axes_beta.plot_trisurf(beta[0][:, 0], beta[0][:, 1], beta[1], beta[0][:,2],color='green', edgecolor='none',alpha=0.4)
-                if beta[2] is not None:
-                    self.axes_beta.plot_trisurf(beta[2][:, 0], beta[2][:, 1], beta[3], beta[2][:,2],color='blue', edgecolor='none',alpha=0.4)
-                self.node.get_atom_surface_points(self.axes_beta,1)
-                self.axes_beta.set_xlim((max(bnds),min(bnds)))
-                self.axes_beta.set_ylim((max(bnds),min(bnds)))
-                self.axes_beta.set_zlim((max(bnds),min(bnds)))
-                self.canvas_beta.draw()
+        if not self.node.inputs_ready():
+            return
+        bnds = get_bounding_box(self.node.input(0).payload.atom_coords(), 1.5)
+        beta = self.node.get_isosurface(self.orbitallistbeta.currentRow(),
+                                        float(self.lineedit.text()), bnds=bnds, beta=True)
+        if beta is None:
+            return
+        self._draw_lobes(self.axes_beta, beta, bnds)
+        self.node.get_atom_surface_points(self.axes_beta, 1)
+        self.canvas_beta.draw()
 
     def update_plot(self):
         self.update_plot_alpha()

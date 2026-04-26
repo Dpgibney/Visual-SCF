@@ -15,71 +15,36 @@ def get_atom_surface_points(atoms_coords, axes, size):
         z_ = z + atom[2]
         axes.plot_surface(x_, y_, z_, color='red', alpha=0.8)
 
-def get_isosurface(mol,mo_coeff,orbital,iso_val,bnds,beta=False):
-    from skimage import measure
-    max_ = max(bnds)
-    min_ = min(bnds)
-    grid_points = 50
-    X = np.linspace(min_,max_,grid_points)
-    Y = np.linspace(min_,max_,grid_points)
-    Z = np.linspace(min_,max_,grid_points)
-    spacing = (max_-min_)/grid_points
-    spacing = (spacing,spacing,spacing)
-    X, Y, Z = np.meshgrid(X,Y,Z)
-    coords = np.vstack([X.ravel(),Y.ravel(),Z.ravel()]).T
+def _eval_mo_grid(mol, coeff_1d, bnds, grid_points=50):
+    max_, min_ = max(bnds), min(bnds)
+    axis = np.linspace(min_, max_, grid_points)
+    spacing = (axis[1] - axis[0],) * 3
+    X, Y, Z = np.meshgrid(axis, axis, axis, indexing='ij')
+    coords = np.vstack([X.ravel(), Y.ravel(), Z.ravel()]).T
     ao = mol.eval_gto('GTOval', coords)
+    mo = np.einsum('i,ki->k', coeff_1d, ao)
+    return mo.reshape(X.shape), spacing, min_
 
-    if orbital >= 0:
-        if not beta:
-            if len(mo_coeff.shape) == 3:
-                orbital_coeff_alpha = mo_coeff[0,:, orbital]
-            else:
-                orbital_coeff_alpha = mo_coeff[:, orbital]
+def _safe_marching(grid, level, spacing, origin):
+    from skimage import measure
+    try:
+        verts, faces, _, _ = measure.marching_cubes(grid, level, spacing=spacing)
+    except (ValueError, RuntimeError):
+        return None, None
+    return verts + origin, faces
 
-            mo = np.einsum('i,ki->k',orbital_coeff_alpha,ao)
-            mo_values_grid = mo.reshape(X.shape)
-
-            pos_verts, pos_faces, _ ,_ = measure.marching_cubes(mo_values_grid,iso_val,spacing=spacing)
-            try:
-                neg_verts, neg_faces, _ ,_ = measure.marching_cubes(mo_values_grid,-iso_val,spacing=spacing)
-                tmp = neg_verts[:,0] + min_
-                neg_verts[:,0] = neg_verts[:,1] + min_
-                neg_verts[:,1] = tmp# + min_
-                neg_verts[:,2] += min_
-            except:
-                neg_verts, neg_faces = None, None
-            tmp = pos_verts[:,0] + min_
-            pos_verts[:,0] = pos_verts[:,1] + min_
-            pos_verts[:,1] = tmp# + min_
-            pos_verts[:,2] += min_
-
-            alpha = (pos_verts, pos_faces, neg_verts, neg_faces)
-            return alpha
-
-        else:
-            orbital_coeff_beta = mo_coeff[1,:, orbital]
-            mo = np.einsum('i,ki->k',orbital_coeff_beta,ao)
-            mo_values_grid = mo.reshape(X.shape)
-            pos_verts, pos_faces, _ ,_ = measure.marching_cubes(mo_values_grid,iso_val,spacing=spacing)
-            try:
-                neg_verts, neg_faces, _ ,_ = measure.marching_cubes(mo_values_grid,-iso_val,spacing=spacing)
-                tmp = neg_verts[:,0] + min_
-                neg_verts[:,0] = neg_verts[:,1] + min_
-                neg_verts[:,1] = tmp# + min_
-                neg_verts[:,2] += min_
-            except:
-                neg_verts, neg_faces = None, None
-            tmp = pos_verts[:,0] + min_
-            pos_verts[:,0] = pos_verts[:,1] + min_
-            pos_verts[:,1] = tmp# + min_
-            pos_verts[:,2] += min_
-
-            beta = (pos_verts, pos_faces, neg_verts, neg_faces)
-            return beta
+def get_isosurface(mol, mo_coeff, orbital, iso_val, bnds, beta=False):
+    if orbital < 0:
+        # TODO: total electron density
+        return None
+    if mo_coeff.ndim == 3:
+        coeff_1d = mo_coeff[1 if beta else 0, :, orbital]
     else:
-        #TODO impliment total electron density for this one
-        #Will also need to update the labeling in the orbitallists
-        pass
+        coeff_1d = mo_coeff[:, orbital]
+    grid, spacing, origin = _eval_mo_grid(mol, coeff_1d, bnds)
+    pos_verts, pos_faces = _safe_marching(grid, iso_val, spacing, origin)
+    neg_verts, neg_faces = _safe_marching(grid, -iso_val, spacing, origin)
+    return (pos_verts, pos_faces, neg_verts, neg_faces)
 
 class LinePlotNode(Node):
     """Generates a line graph"""

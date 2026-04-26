@@ -92,6 +92,9 @@ class GuessWidget(NodeMainWidget,QComboBox):
         QComboBox.__init__(self)
 
         self.addItems(['minao','atom','huckel','hcore','1e','sap'])
+        idx = self.findText(self.node.guess)
+        if idx >= 0:
+            self.setCurrentIndex(idx)
         self.currentTextChanged.connect(self.update_guess)
 
     def update_guess(self, guess):

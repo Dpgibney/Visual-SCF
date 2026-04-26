@@ -1,0 +1,29 @@
+# Visual-SCF runtime dependencies (Python 3.12).
+#
+# Ryven (ryven, ryvencore, ryvencore-qt) is installed editable from local clones
+# so we can patch it as Visual-SCF evolves. Set up the Ryven side once with:
+#
+#   git clone https://github.com/Dpgibney/Ryven.git ~/Projects/Ryven
+#   git clone --branch v0.5.0 https://github.com/leon-thomm/ryvencore.git ~/Projects/ryvencore
+#   pip install -e ~/Projects/ryvencore
+#   pip install -e ~/Projects/Ryven/ryvencore-qt
+#   pip install -e ~/Projects/Ryven/ryven-editor
+#
+# Then install the rest with:
+#
+#   pip install -r requirements.txt
+#
+# Pin notes:
+#   - PySide6 is held below 6.7 because Ryven 3.5.0's UI breaks on newer PySide.
+#   - numpy<2 because the shiboken6 wheel that ships with PySide6 6.6 is built
+#     against numpy 1.x. tifffile 2026.4 will warn it wants numpy>=2 — harmless,
+#     scikit-image only uses tifffile lazily and we never read TIFFs.
+
+numpy<2
+PySide6<6.7
+
+pyscf==2.13.0
+scipy==1.17.1
+matplotlib==3.10.9
+scikit-image==0.26.0
+h5py==3.16.0

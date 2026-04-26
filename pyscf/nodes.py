@@ -112,13 +112,12 @@ class GetMOCoeffNode(Node):
             return
 
         from scipy.linalg import eigh
-        #from numpy import argsort
         ovlp = self.input(0).payload.intor('int1e_ovlp')
         Fock = self.input(1).payload
         e, c = eigh(Fock, ovlp)
         idx = e.argsort()
         e = e[idx]
-        c = c[idx]
+        c = c[:, idx]
         #idx = argmax(abs(c.real), axis=0)
         #c[:,c[idx,arange(len(e))].real<0] *= -1
         #c_idx 
@@ -141,29 +140,32 @@ class Guess1RDMNode(Node):
             NodeInputType(label='Molecule')]
     init_outputs = [NodeOutputType(label='1-RDM')]
 
-    def __init__(self,params):
+    def __init__(self, params):
         super().__init__(params)
-        from pyscf import scf
+        self.guess = 'minao'
 
-    def update_guess(self,guess='minao'):
-        if not self.inputs_ready():
-            return
-
-        mol = self.input(0).payload
-        mf = scf.RHF(mol)
-        rdm1 = mf.get_init_guess(mol, guess)
-        self.set_output_val(0, Data(rdm1))
+    def update_guess(self, guess):
+        self.guess = guess
+        self.update_event()
 
     def update_event(self, inp=-1):
         if not self.inputs_ready():
             return
-        self.update_guess()
+        mol = self.input(0).payload
+        rdm1 = scf.RHF(mol).get_init_guess(mol, self.guess)
+        self.set_output_val(0, Data(rdm1))
 
     def inputs_ready(self):
         return all(hasattr(self.input(i), 'payload') for i in range(len(self.inputs)))
 
     def have_gui(self):
         return hasattr(self, 'gui')
+
+    def get_state(self):
+        return {'guess': self.guess}
+
+    def set_state(self, data, version):
+        self.guess = data.get('guess', 'minao')
 
 class Make1RDMNode(Node):
     """Makes the 1-RDM from a set of MO Coefficients and the Molecules number of electrons (alpha,beta)"""
