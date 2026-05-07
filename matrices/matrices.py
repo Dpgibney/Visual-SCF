@@ -458,7 +458,7 @@ export_nodes(
     node_types=[
         #EditMatrixNode,
         ShowMatrix,
-        ShowMOCoeff,
+        # ShowMOCoeff superseded by pyscf.MOCoeffViewerNode (labeled view)
         #Conjugate,
         #Transpose,
         #DetOfMatrix,

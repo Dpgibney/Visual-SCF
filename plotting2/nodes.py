@@ -1,20 +1,6 @@
 from ryven.node_env import *
 import numpy as np
 
-def get_atom_surface_points(atoms_coords, axes, size):
-    theta = np.linspace(0, 2 * np.pi, 20)
-    phi = np.linspace(0, np.pi, 10)
-    theta, phi = np.meshgrid(theta, phi)
-    r = 0.2
-    x = r * np.sin(phi) * np.cos(theta)
-    y = r * np.sin(phi) * np.sin(theta)
-    z = r * np.cos(phi)
-    for atom in atoms_coords:
-        x_ = x + atom[0]
-        y_ = y + atom[1]
-        z_ = z + atom[2]
-        axes.plot_surface(x_, y_, z_, color='red', alpha=0.8)
-
 def _eval_mo_grid(mol, coeff_1d, bnds, grid_points=50):
     max_, min_ = max(bnds), min(bnds)
     axis = np.linspace(min_, max_, grid_points)
@@ -33,7 +19,7 @@ def _safe_marching(grid, level, spacing, origin):
         return None, None
     return verts + origin, faces
 
-def get_isosurface(mol, mo_coeff, orbital, iso_val, bnds, beta=False):
+def get_isosurface(mol, mo_coeff, orbital, iso_val, bnds, beta=False, grid_points=50):
     if orbital < 0:
         # TODO: total electron density
         return None
@@ -41,7 +27,7 @@ def get_isosurface(mol, mo_coeff, orbital, iso_val, bnds, beta=False):
         coeff_1d = mo_coeff[1 if beta else 0, :, orbital]
     else:
         coeff_1d = mo_coeff[:, orbital]
-    grid, spacing, origin = _eval_mo_grid(mol, coeff_1d, bnds)
+    grid, spacing, origin = _eval_mo_grid(mol, coeff_1d, bnds, grid_points=grid_points)
     pos_verts, pos_faces = _safe_marching(grid, iso_val, spacing, origin)
     neg_verts, neg_faces = _safe_marching(grid, -iso_val, spacing, origin)
     return (pos_verts, pos_faces, neg_verts, neg_faces)
@@ -81,17 +67,14 @@ class MOPlotNode(Node):
 
     beta = False
 
-    def get_atom_surface_points(self, axes, size):
-        get_atom_surface_points(self.input(0).payload.atom_coords(), axes, size)
-
     def inputs_ready(self):
-        val =  all(hasattr(self.input(i), 'payload') for i in range(len(self.inputs)))
-        return val
+        return all(hasattr(self.input(i), 'payload') for i in range(len(self.inputs)))
 
-    def get_isosurface(self, orbital, iso_val, bnds, beta=False):
+    def get_isosurface(self, orbital, iso_val, bnds, beta=False, grid_points=50):
         mol = self.input(0).payload
         mo_coeff = self.input(1).payload
-        return get_isosurface(mol, mo_coeff, orbital, iso_val, bnds, beta)
+        return get_isosurface(mol, mo_coeff, orbital, iso_val, bnds, beta,
+                              grid_points=grid_points)
 
     def update_event(self, inp=-1):
         if not self.inputs_ready():
@@ -120,16 +103,13 @@ class AOPlotNode(Node):
     def inputs_ready(self):
         return all(self.input(i) is not None for i in range(len(self.inputs)))
 
-    def get_atom_surface_points(self, axes, size):
-        get_atom_surface_points(self.input(0).payload.atom_coords(), axes, size)
-
-    def get_isosurface(self, orbital, iso_val, bnds, beta=False):
+    def get_isosurface(self, orbital, iso_val, bnds, beta=False, grid_points=50):
+        # Each "MO" is a single AO basis function: C = I, so column k is e_k
+        # and the iso helper picks out AO #k. Beta is meaningless for AOs.
         mol = self.input(0).payload
         n = mol.nao_nr()
-        mo_coeff = np.asarray([np.zeros((n,n)),np.zeros((n,n))])
-        mo_coeff[0,orbital,orbital] = 1
-        mo_coeff[1,orbital,orbital] = 1
-        return get_isosurface(mol, mo_coeff, orbital,iso_val, bnds, beta)
+        return get_isosurface(mol, np.eye(n), orbital, iso_val, bnds, beta=False,
+                              grid_points=grid_points)
 
     def update_event(self, inp=-1):
         if not self.inputs_ready():

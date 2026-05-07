@@ -1,5 +1,9 @@
 from qtpy.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTextEdit,
-                            QLabel, QComboBox, QSpinBox, QPushButton)
+                            QLabel, QComboBox, QSpinBox, QPushButton,
+                            QTableWidget, QTableWidgetItem, QHeaderView,
+                            QAbstractItemView)
+from qtpy.QtGui import QColor
+from qtpy.QtCore import Qt
 
 from ryven.gui_env import *
 
@@ -115,6 +119,110 @@ class GuessWidget(NodeMainWidget,QComboBox):
     def update_guess(self, guess):
         self.node.update_guess(guess)
 
+def _mo_label(idx, n_occ):
+    """Return Hono/Luno-style label for MO at zero-based column index."""
+    k = idx + 1
+    if k < n_occ:
+        return f"Hono-{n_occ - k}"
+    if k == n_occ:
+        return "Hono"
+    if k == n_occ + 1:
+        return "Luno"
+    return f"Luno+{k - n_occ - 1}"
+
+
+class _MOCoeffTable(QTableWidget):
+    """One QTableWidget pre-populated with MO coefficients, AO labels as row
+    headers, MO labels as column headers, and an occupation row at the top.
+    Cell background is shaded blue (positive) or red (negative) by magnitude."""
+
+    POS_BG = QColor(70, 130, 200)
+    NEG_BG = QColor(220, 80, 80)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+
+    def populate(self, coeff_2d, ao_labels, n_occ, occ_per_mo):
+        nao, nmo = coeff_2d.shape
+        self.clear()
+        self.setRowCount(nao + 1)  # +1 for occupation row
+        self.setColumnCount(nmo)
+        self.setHorizontalHeaderLabels([_mo_label(j, n_occ) for j in range(nmo)])
+        self.setVerticalHeaderLabels(['Occ.'] + list(ao_labels))
+
+        for j in range(nmo):
+            occ = occ_per_mo if (j + 1) <= n_occ else 0
+            item = QTableWidgetItem(str(occ))
+            item.setTextAlignment(Qt.AlignCenter)
+            self.setItem(0, j, item)
+
+        max_abs = max(1e-9, float(abs(coeff_2d).max()))
+        for i in range(nao):
+            for j in range(nmo):
+                val = float(coeff_2d[i, j])
+                item = QTableWidgetItem(f"{val:+.4f}")
+                item.setTextAlignment(Qt.AlignCenter)
+                # Alpha proportional to |val| / max(|val|), so the table reads
+                # like a heat map of the AO→MO transform.
+                shade = int(200 * min(abs(val) / max_abs, 1.0))
+                bg = QColor(self.POS_BG if val >= 0 else self.NEG_BG)
+                bg.setAlpha(shade)
+                item.setBackground(bg)
+                self.setItem(i + 1, j, item)
+
+        self.resizeColumnsToContents()
+
+
+class MOCoeffViewerWidget(NodeMainWidget, QWidget):
+    """Two _MOCoeffTable instances (alpha + beta). Beta is hidden for closed
+    shell. Header label states the AO→MO framing explicitly."""
+
+    def __init__(self, params):
+        NodeMainWidget.__init__(self, params)
+        QWidget.__init__(self)
+
+        self.title_label = QLabel('<b>MO Coefficients</b> &nbsp; — &nbsp; C: AO → MO')
+        self.title_label.setTextFormat(Qt.RichText)
+
+        self.alpha_label = QLabel('Alpha')
+        self.alpha_label.hide()
+        self.alpha_table = _MOCoeffTable()
+
+        self.beta_label = QLabel('Beta')
+        self.beta_label.hide()
+        self.beta_table = _MOCoeffTable()
+        self.beta_table.hide()
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.title_label)
+        layout.addWidget(self.alpha_label)
+        layout.addWidget(self.alpha_table)
+        layout.addWidget(self.beta_label)
+        layout.addWidget(self.beta_table)
+        self.setLayout(layout)
+        self.setMinimumSize(420, 280)
+
+    def update_view(self, mol, mo_coeff):
+        ao_labels = mol.ao_labels()
+        n_alpha, n_beta = mol.nelec
+        if mo_coeff.ndim == 3:
+            self.alpha_label.show()
+            self.beta_label.show()
+            self.beta_table.show()
+            self.alpha_table.populate(mo_coeff[0], ao_labels, n_alpha, occ_per_mo=1)
+            self.beta_table.populate(mo_coeff[1], ao_labels, n_beta, occ_per_mo=1)
+        else:
+            self.alpha_label.hide()
+            self.beta_label.hide()
+            self.beta_table.hide()
+            # closed-shell: each occupied MO holds 2 electrons
+            self.alpha_table.populate(mo_coeff, ao_labels, n_alpha, occ_per_mo=2)
+
+
 class SCFStepWidget(NodeMainWidget, QWidget):
     def __init__(self, params):
         NodeMainWidget.__init__(self, params)
@@ -165,3 +273,12 @@ class SCFStepNodeGui(NodeGUI):
 
     def update_step_count(self, n):
         self.main_widget().update_step_count(n)
+
+@node_gui(nodes.MOCoeffViewerNode)
+class MOCoeffViewerNodeGui(NodeGUI):
+    main_widget_class = MOCoeffViewerWidget
+    main_widget_pos = 'below ports'
+    color = '#3344ff'
+
+    def update_view(self, mol, mo_coeff):
+        self.main_widget().update_view(mol, mo_coeff)

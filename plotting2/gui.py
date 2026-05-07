@@ -1,21 +1,22 @@
-from qtpy.QtWidgets import QSlider, QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem, QLineEdit, QLabel
-import qtpy.QtWidgets
+from qtpy.QtWidgets import (QSlider, QWidget, QVBoxLayout, QHBoxLayout,
+                            QListWidget, QListWidgetItem, QLineEdit, QLabel,
+                            QSpinBox)
 from qtpy.QtCore import Qt
 
 from ryven.gui_env import *
 
 from . import nodes
+from .qpainter3d import Painter3DCanvas
 
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
-from mpl_toolkits.mplot3d import Axes3D
 matplotlib.use('Qt5Agg')
 import matplotlib.style as mplstyle
 mplstyle.use('fast')
 
 import numpy as np
+
 
 def get_bounding_box(atom_coords, buffer):
     mins = atom_coords.min(axis=0) - buffer
@@ -26,88 +27,133 @@ def get_bounding_box(atom_coords, buffer):
 class MplCanvas(FigureCanvas):
     def __init__(self, parent=None, width=5, height=4, dpi=100):
         fig, ax = plt.subplots(figsize=(width, height), dpi=dpi)
-        #self.axes = fig.add_subplot(111)
         super().__init__(fig)
         self.setParent(parent)
         self.ax = ax
 
-class MplCanvas3d(FigureCanvas):
-    def __init__(self, parent=None, width=5, height=4, dpi=100):
-        fig, ax = plt.subplots(figsize=(width, height), dpi=dpi, projection='3d')
-        super().__init__(fig)
-        self.setParent(parent)
-        self.ax = ax
+DEFAULT_POS_COLOR = '#d62728'  # red
+DEFAULT_NEG_COLOR = '#1f77b4'  # blue
+DEFAULT_OPACITY = 0.5
+GRID_BUFFER = 1.5  # Bohr around the molecule for the iso grid bbox
+DEFAULT_GRID_POINTS = 50
+GRID_POINTS_MIN = 20
+GRID_POINTS_MAX = 80
+GRID_POINTS_STEP = 5
+
 
 class SurfacePlotWidget(NodeMainWidget, QWidget):
+    """Embedded controls (orbital list, iso/opacity sliders, grid resolution)
+    plus inline 3D viewers — one for alpha orbitals, one for beta — rendered
+    by Painter3DCanvas (pure QPainter, embeds inside Ryven's QGraphicsScene)."""
+
     def __init__(self, params):
         NodeMainWidget.__init__(self, params)
         QWidget.__init__(self)
 
-        self.fig_alpha = Figure()
-        self.canvas_alpha = FigureCanvas(self.fig_alpha)
-        self.axes_alpha = self.fig_alpha.add_subplot(111, projection='3d')
-
-        self.fig_beta = Figure()
-        self.canvas_beta = FigureCanvas(self.fig_beta)
-        self.axes_beta = self.fig_beta.add_subplot(111, projection='3d')
-        self.canvas_beta.hide()
-
+        # --- iso slider + lineedit ---------------------------------------
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setMaximum(1000)
         self.slider.setValue(100)
-        self.lineedit = QLineEdit()
-        self.lineedit.setText('0.1')
-        self.slider.valueChanged.connect(self.update_lineedit)
-        self.lineedit.textChanged.connect(self.update_slider)
-        self.alpha_label = QLabel('',self)
-        self.iso_label = QLabel('Isosurface Value: ',self)
-        self.beta_label = QLabel('Beta Orbitals',self)
+        self.lineedit = QLineEdit('0.1')
+        self.lineedit.setMaximumWidth(60)
+
+        self.opacity_slider = QSlider(Qt.Horizontal)
+        self.opacity_slider.setMaximum(100)
+        self.opacity_slider.setValue(int(DEFAULT_OPACITY * 100))
+        self.opacity_lineedit = QLineEdit(f'{DEFAULT_OPACITY:.2f}')
+        self.opacity_lineedit.setMaximumWidth(60)
+
+        self.slider.valueChanged.connect(self._iso_slider_changed)
+        self.lineedit.textChanged.connect(self._iso_text_changed)
+        self.opacity_slider.valueChanged.connect(self._opacity_slider_changed)
+        self.opacity_lineedit.textChanged.connect(self._opacity_text_changed)
+
+        # marching-cubes grid resolution (per-node, persisted). The QPainter
+        # renderer is fast at 30³ but visibly chunky; 50³ is the sweet spot
+        # for sto-3g / minimal basis MOs. Users dial down for cc-pvdz where
+        # face counts climb.
+        self.grid_spin = QSpinBox()
+        self.grid_spin.setRange(GRID_POINTS_MIN, GRID_POINTS_MAX)
+        self.grid_spin.setSingleStep(GRID_POINTS_STEP)
+        self.grid_spin.setValue(DEFAULT_GRID_POINTS)
+        self.grid_spin.valueChanged.connect(self.update_plot)
+
+        self.alpha_label = QLabel('Alpha Orbitals')
+        self.beta_label = QLabel('Beta Orbitals')
         self.beta_label.hide()
-        
+
+        # --- orbital lists -----------------------------------------------
         self.orbitallistalpha = QListWidget()
         self.orbitallistbeta = QListWidget()
         # set by set_state during project load; consumed once by the next
-        # update_orbitallist call (-1 means "no pending value, keep whatever's selected").
+        # update_orbitallist call (-1 means "no pending value").
         self._pending_alpha_row = -1
         self._pending_beta_row = -1
+        self._beta_visible = False
         self.orbitallistalpha.currentItemChanged.connect(self.update_plot_alpha)
         self.orbitallistbeta.currentItemChanged.connect(self.update_plot_beta)
         self.orbitallistbeta.hide()
 
-        vlayout = QVBoxLayout()
-        hlayout_top = QHBoxLayout()
-        hlayout_top.addWidget(self.iso_label)
-        hlayout_top.addWidget(self.slider)
-        hlayout_top.addWidget(self.lineedit)
+        # --- 3D canvases -------------------------------------------------
+        self.alpha_canvas = Painter3DCanvas(self)
+        self.beta_canvas = Painter3DCanvas(self)
+        self.beta_canvas.hide()
+        # share camera so rotating/zooming one canvas mirrors the other
+        self.alpha_canvas.link_camera(self.beta_canvas)
 
-        self.vlayout_orbs_left = QVBoxLayout()
-        self.vlayout_orbs_left.addWidget(self.alpha_label)
-        self.vlayout_orbs_left.addWidget(self.orbitallistalpha)
-        self.hlayout_left = QHBoxLayout()
-        self.hlayout_left.addLayout(self.vlayout_orbs_left)
-        self.hlayout_left.addWidget(self.canvas_alpha)
+        # --- layout ------------------------------------------------------
+        iso_row = QHBoxLayout()
+        iso_row.addWidget(QLabel('Isosurface'))
+        iso_row.addWidget(self.slider)
+        iso_row.addWidget(self.lineedit)
 
-        self.vlayout_orbs_right = QVBoxLayout()
-        self.vlayout_orbs_right.addWidget(self.beta_label)
-        self.vlayout_orbs_right.addWidget(self.orbitallistbeta)
-        self.hlayout_right = QHBoxLayout()
-        self.hlayout_right.addWidget(self.canvas_beta)
-        self.hlayout_right.addLayout(self.vlayout_orbs_right)
+        opacity_row = QHBoxLayout()
+        opacity_row.addWidget(QLabel('Opacity'))
+        opacity_row.addWidget(self.opacity_slider)
+        opacity_row.addWidget(self.opacity_lineedit)
 
-        self.hlayout_bottom = QHBoxLayout()
-        self.hlayout_bottom.addLayout(self.hlayout_left)
-        self.hlayout_bottom.addLayout(self.hlayout_right)
-        vlayout.addLayout(hlayout_top)
-        vlayout.addLayout(self.hlayout_bottom)
+        grid_row = QHBoxLayout()
+        grid_row.addWidget(QLabel('Grid points'))
+        grid_row.addWidget(self.grid_spin)
+        grid_row.addStretch()
 
-        self.setLayout(vlayout)
+        left_col = QVBoxLayout()
+        left_col.addWidget(self.alpha_label)
+        left_col.addWidget(self.orbitallistalpha)
+
+        right_col = QVBoxLayout()
+        right_col.addWidget(self.beta_label)
+        right_col.addWidget(self.orbitallistbeta)
+
+        lists_row = QHBoxLayout()
+        lists_row.addLayout(left_col)
+        lists_row.addLayout(right_col)
+
+        canvases_row = QHBoxLayout()
+        canvases_row.addWidget(self.alpha_canvas, stretch=1)
+        canvases_row.addWidget(self.beta_canvas, stretch=1)
+
+        outer = QVBoxLayout()
+        outer.addLayout(iso_row)
+        outer.addLayout(opacity_row)
+        outer.addLayout(grid_row)
+        outer.addLayout(lists_row)
+        outer.addLayout(canvases_row)
+        self.setLayout(outer)
+
+        self.setMinimumWidth(420)
+        self.setMinimumHeight(560)
+
+    # ---------------------------------------------------------------- state
 
     def get_state(self):
         return {
             'iso': self.lineedit.text(),
+            'opacity': self.opacity_lineedit.text(),
             'alpha_row': self.orbitallistalpha.currentRow(),
             'beta_row': self.orbitallistbeta.currentRow(),
-            'beta_visible': self.canvas_beta.isVisibleTo(self),
+            'beta_visible': self._beta_visible,
+            'grid_points': self.grid_spin.value(),
         }
 
     def set_state(self, data):
@@ -118,58 +164,51 @@ class SurfacePlotWidget(NodeMainWidget, QWidget):
                 self.lineedit.setText(iso)
             except ValueError:
                 pass
+        opacity = data.get('opacity')
+        if opacity:
+            try:
+                self.opacity_slider.setValue(int(round(float(opacity) * 100)))
+                self.opacity_lineedit.setText(opacity)
+            except ValueError:
+                pass
+        gp = data.get('grid_points')
+        if isinstance(gp, int):
+            self.grid_spin.setValue(max(GRID_POINTS_MIN, min(GRID_POINTS_MAX, gp)))
         self._pending_alpha_row = data.get('alpha_row', -1)
         self._pending_beta_row = data.get('beta_row', -1)
         if data.get('beta_visible'):
             self.add_beta()
 
+    # ---------------------------------------------------------- orbital list
+
     def update_orbitallist(self, num_orbs, num_electrons, ao_labels=None):
-        # Preserve current selection across re-population (SCF iterations,
-        # basis changes, etc). A pending row from set_state takes precedence
-        # the first time it's available.
         prev_alpha = self._pending_alpha_row if self._pending_alpha_row >= 0 else self.orbitallistalpha.currentRow()
         prev_beta = self._pending_beta_row if self._pending_beta_row >= 0 else self.orbitallistbeta.currentRow()
         self._pending_alpha_row = -1
         self._pending_beta_row = -1
         self.orbitallistalpha.clear()
         self.orbitallistbeta.clear()
-        #If ao_labels is none then it is the MO plotting
         if ao_labels is not None:
             for label in ao_labels:
-                item = QListWidgetItem(f"{label}")
-                self.orbitallistalpha.addItem(item)
+                self.orbitallistalpha.addItem(QListWidgetItem(label))
         else:
-            for i in range(num_orbs):
-                i = i+1
-                if i < num_electrons[0]:
-                    item = QListWidgetItem(f"Hono -{num_electrons[0]-i}")
-                    self.orbitallistalpha.addItem(item)
-                elif i == num_electrons[0]:
-                    item = QListWidgetItem(f"Hono")
-                    self.orbitallistalpha.addItem(item)
-                elif i == num_electrons[0] + 1:
-                    item = QListWidgetItem(f"Luno")
-                    self.orbitallistalpha.addItem(item)
-                else:
-                    item = QListWidgetItem(f"Luno +{i-num_electrons[0]}")
-                    self.orbitallistalpha.addItem(item)
-
-            for i in range(num_orbs):
-                i = i+1
-                if i < num_electrons[1]:
-                    item = QListWidgetItem(f"Hono -{num_electrons[1]-i}")
-                    self.orbitallistbeta.addItem(item)
-                elif i == num_electrons[1]:
-                    item = QListWidgetItem(f"Hono")
-                    self.orbitallistbeta.addItem(item)
-                elif i == num_electrons[1] + 1:
-                    item = QListWidgetItem(f"Luno")
-                    self.orbitallistbeta.addItem(item)
-                else:
-                    item = QListWidgetItem(f"Luno +{i-num_electrons[1]}")
-                    self.orbitallistbeta.addItem(item)
+            self._populate_mo_list(self.orbitallistalpha, num_orbs, num_electrons[0])
+            self._populate_mo_list(self.orbitallistbeta, num_orbs, num_electrons[1])
         self._restore_row(self.orbitallistalpha, prev_alpha)
         self._restore_row(self.orbitallistbeta, prev_beta)
+
+    @staticmethod
+    def _populate_mo_list(list_widget, num_orbs, n_occ):
+        for k in range(1, num_orbs + 1):
+            if k < n_occ:
+                label = f"Hono -{n_occ - k}"
+            elif k == n_occ:
+                label = "Hono"
+            elif k == n_occ + 1:
+                label = "Luno"
+            else:
+                label = f"Luno +{k - n_occ}"
+            list_widget.addItem(QListWidgetItem(label))
 
     @staticmethod
     def _restore_row(list_widget, row):
@@ -178,76 +217,100 @@ class SurfacePlotWidget(NodeMainWidget, QWidget):
             return
         list_widget.setCurrentRow(row if 0 <= row < n else 0)
 
+    # -------------------------------------------------------- iso/opacity ui
 
+    def _iso_slider_changed(self, value):
+        text = f'{value / 1000.0:.3f}'
+        if self.lineedit.text() != text:
+            self.lineedit.setText(text)
+        self.update_plot()
 
-    def update_lineedit(self,value):
-        self.lineedit.setText(str(value/1000.0))
-        self.update_plot_alpha()
-        self.update_plot_beta()
-
-    def update_slider(self,text):
+    def _iso_text_changed(self, text):
         try:
             value = float(text)
-            value *= 1000
-            if 0 <= value <= 1000:
-                self.slider.setValue(value)
-            self.update_plot_alpha()
-            self.update_plot_beta()
         except ValueError:
-            pass
+            return
+        slider_val = int(round(value * 1000))
+        if 0 <= slider_val <= 1000 and self.slider.value() != slider_val:
+            self.slider.setValue(slider_val)
+        self.update_plot()
+
+    def _opacity_slider_changed(self, value):
+        text = f'{value / 100.0:.2f}'
+        if self.opacity_lineedit.text() != text:
+            self.opacity_lineedit.setText(text)
+        self.update_plot()
+
+    def _opacity_text_changed(self, text):
+        try:
+            value = float(text)
+        except ValueError:
+            return
+        slider_val = int(round(value * 100))
+        if 0 <= slider_val <= 100 and self.opacity_slider.value() != slider_val:
+            self.opacity_slider.setValue(slider_val)
+        self.update_plot()
+
+    def _opacity(self):
+        try:
+            return max(0.0, min(1.0, float(self.opacity_lineedit.text())))
+        except ValueError:
+            return DEFAULT_OPACITY
+
+    # ----------------------------------------------------- beta panel toggle
 
     def add_beta(self):
-        if self.orbitallistbeta.visibleRegion().isEmpty():
-           self.orbitallistbeta.show()
-           self.canvas_beta.show()
-           self.beta_label.show()
+        if not self._beta_visible:
+            self._beta_visible = True
+            self.orbitallistbeta.show()
+            self.beta_label.show()
+            self.beta_canvas.show()
 
     def remove_beta(self):
-        if not self.orbitallistbeta.visibleRegion().isEmpty():
-           self.orbitallistbeta.hide()
-           self.canvas_beta.hide()
-           self.beta_label.hide()
+        if self._beta_visible:
+            self._beta_visible = False
+            self.orbitallistbeta.hide()
+            self.beta_label.hide()
+            self.beta_canvas.hide()
+            self.beta_canvas.clear_lobes()
 
-    def _draw_lobes(self, axes, surface, bnds):
-        axes.cla()
-        pos_verts, pos_faces, neg_verts, neg_faces = surface
-        if pos_verts is not None:
-            axes.plot_trisurf(pos_verts[:, 0], pos_verts[:, 1], pos_faces, pos_verts[:, 2],
-                              color='green', edgecolor='none', alpha=0.4)
-        if neg_verts is not None:
-            axes.plot_trisurf(neg_verts[:, 0], neg_verts[:, 1], neg_faces, neg_verts[:, 2],
-                              color='blue', edgecolor='none', alpha=0.4)
-        axes.set_xlim((max(bnds), min(bnds)))
-        axes.set_ylim((max(bnds), min(bnds)))
-        axes.set_zlim((max(bnds), min(bnds)))
+    # ------------------------------------------------------------ rendering
+
+    def _iso_value(self):
+        try:
+            return float(self.lineedit.text())
+        except ValueError:
+            return 0.1
 
     def update_plot_alpha(self):
         if not self.node.inputs_ready():
             return
-        bnds = get_bounding_box(self.node.input(0).payload.atom_coords(), 1.5)
-        alpha = self.node.get_isosurface(self.orbitallistalpha.currentRow(),
-                                         float(self.lineedit.text()), bnds=bnds)
-        if alpha is None:
-            return
-        self._draw_lobes(self.axes_alpha, alpha, bnds)
-        self.node.get_atom_surface_points(self.axes_alpha, 1)
-        self.canvas_alpha.draw()
+        mol = self.node.input(0).payload
+        self.alpha_canvas.set_molecule(mol)
+        bnds = get_bounding_box(mol.atom_coords(), GRID_BUFFER)
+        surface = self.node.get_isosurface(self.orbitallistalpha.currentRow(),
+                                           self._iso_value(), bnds=bnds,
+                                           grid_points=self.grid_spin.value())
+        self.alpha_canvas.set_lobes(surface, self._opacity(),
+                                    pos_color=DEFAULT_POS_COLOR,
+                                    neg_color=DEFAULT_NEG_COLOR)
 
     def update_plot_beta(self):
-        if not self.node.inputs_ready():
+        if not self.node.inputs_ready() or not self._beta_visible:
             return
-        bnds = get_bounding_box(self.node.input(0).payload.atom_coords(), 1.5)
-        beta = self.node.get_isosurface(self.orbitallistbeta.currentRow(),
-                                        float(self.lineedit.text()), bnds=bnds, beta=True)
-        if beta is None:
-            return
-        self._draw_lobes(self.axes_beta, beta, bnds)
-        self.node.get_atom_surface_points(self.axes_beta, 1)
-        self.canvas_beta.draw()
+        mol = self.node.input(0).payload
+        self.beta_canvas.set_molecule(mol)
+        bnds = get_bounding_box(mol.atom_coords(), GRID_BUFFER)
+        surface = self.node.get_isosurface(self.orbitallistbeta.currentRow(),
+                                           self._iso_value(), bnds=bnds, beta=True,
+                                           grid_points=self.grid_spin.value())
+        self.beta_canvas.set_lobes(surface, self._opacity(),
+                                   pos_color=DEFAULT_POS_COLOR,
+                                   neg_color=DEFAULT_NEG_COLOR)
 
     def update_plot(self):
         self.update_plot_alpha()
-        if not self.orbitallistbeta.visibleRegion().isEmpty():
+        if self._beta_visible:
             self.update_plot_beta()
 
 

@@ -290,6 +290,31 @@ class UKSNode(Node):
         mf.kernel(dm)
 
 
+class MOCoeffViewerNode(Node):
+    """Displays MO coefficients as a table with AO labels (rows), MO
+    labels (Hono/Luno + offsets) and occupations as columns. Pedagogically
+    emphasizes that C is the unitary transform from AO basis to MO basis."""
+
+    title = 'MO Coefficient Viewer'
+    tags = ['MO Coefficients']
+    init_inputs = [
+        NodeInputType(label='Molecule'),
+        NodeInputType(label='MO Coefficients'),
+    ]
+
+    def inputs_ready(self):
+        return all(hasattr(self.input(i), 'payload') for i in range(len(self.inputs)))
+
+    def update_event(self, inp=-1):
+        if not self.inputs_ready():
+            return
+        if hasattr(self, 'gui'):
+            self.gui.update_view(self.input(0).payload, self.input(1).payload)
+
+    def have_gui(self):
+        return hasattr(self, 'gui')
+
+
 class SCFStepNode(Node):
     """Single-step iterator that closes the SCF loop.
 
@@ -366,6 +391,7 @@ export_nodes([
     GetMOCoeffNode,
     Make1RDMNode,
     SCFStepNode,
+    MOCoeffViewerNode,
 ])
 
 
