@@ -18,6 +18,9 @@
 #   - numpy<2 because the shiboken6 wheel that ships with PySide6 6.6 is built
 #     against numpy 1.x. tifffile 2026.4 will warn it wants numpy>=2 — harmless,
 #     scikit-image only uses tifffile lazily and we never read TIFFs.
+#   - pyvista / pyvistaqt were removed when the orbital plotter switched to a
+#     pure-QPainter renderer (plotting2/qpainter3d.py). Re-add them only if a
+#     future feature reintroduces VTK.
 
 numpy<2
 PySide6<6.7

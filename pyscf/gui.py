@@ -119,6 +119,112 @@ class GuessWidget(NodeMainWidget,QComboBox):
     def update_guess(self, guess):
         self.node.update_guess(guess)
 
+
+class CASSCFWidget(NodeMainWidget, QWidget):
+    """Active-space, root, and 1-RDM-representation controls for CASSCFNode.
+    Structural params (ncas, nα, nβ, nroots) gate behind a Run button —
+    CASSCF is too expensive to fire on every spinbox change. Display root
+    and representation re-emit from the cached solver without re-running."""
+
+    def __init__(self, params):
+        NodeMainWidget.__init__(self, params)
+        QWidget.__init__(self)
+
+        layout = QVBoxLayout()
+
+        as_row = QHBoxLayout()
+        as_row.addWidget(QLabel('ncas'))
+        self.ncasBox = QSpinBox(); self.ncasBox.setRange(1, 50)
+        as_row.addWidget(self.ncasBox)
+        as_row.addWidget(QLabel('nα'))
+        self.naBox = QSpinBox(); self.naBox.setRange(0, 50)
+        as_row.addWidget(self.naBox)
+        as_row.addWidget(QLabel('nβ'))
+        self.nbBox = QSpinBox(); self.nbBox.setRange(0, 50)
+        as_row.addWidget(self.nbBox)
+        as_row.addStretch()
+        layout.addLayout(as_row)
+
+        roots_row = QHBoxLayout()
+        roots_row.addWidget(QLabel('Roots'))
+        self.nrootsBox = QSpinBox(); self.nrootsBox.setRange(1, 20)
+        roots_row.addWidget(self.nrootsBox)
+        roots_row.addWidget(QLabel('Display'))
+        self.displayBox = QSpinBox(); self.displayBox.setRange(1, 1)
+        roots_row.addWidget(self.displayBox)
+        roots_row.addStretch()
+        layout.addLayout(roots_row)
+
+        rep_row = QHBoxLayout()
+        rep_row.addWidget(QLabel('1-RDM'))
+        self.repBox = QComboBox()
+        self.repBox.addItems(['spin-free', 'spin-resolved'])
+        rep_row.addWidget(self.repBox)
+        rep_row.addStretch()
+        layout.addLayout(rep_row)
+
+        self.runButton = QPushButton('Run')
+        layout.addWidget(self.runButton)
+
+        # validation errors, solver failures, and post-run energy land here
+        # (via node._status) instead of dying in the Qt event loop.
+        self.statusLabel = QLabel('')
+        self.statusLabel.setWordWrap(True)
+        layout.addWidget(self.statusLabel)
+
+        # populate from node state before wiring signals so loaded projects
+        # don't see spurious change events during initial population.
+        self.ncasBox.setValue(self.node.ncas)
+        self.naBox.setValue(self.node.nelecas_a)
+        self.nbBox.setValue(self.node.nelecas_b)
+        self.nrootsBox.setValue(self.node.nroots)
+        self.displayBox.setRange(1, max(1, self.node.nroots))
+        self.displayBox.setValue(self.node.display_root)
+        idx = self.repBox.findText(self.node.representation)
+        if idx >= 0:
+            self.repBox.setCurrentIndex(idx)
+
+        self.ncasBox.valueChanged.connect(self._ncas_changed)
+        self.naBox.valueChanged.connect(self._na_changed)
+        self.nbBox.valueChanged.connect(self._nb_changed)
+        self.nrootsBox.valueChanged.connect(self._nroots_changed)
+        self.displayBox.valueChanged.connect(self._display_changed)
+        self.repBox.currentTextChanged.connect(self._rep_changed)
+        self.runButton.clicked.connect(self._run_clicked)
+
+        self.setLayout(layout)
+
+    def _ncas_changed(self, v):
+        self.node.ncas = v
+
+    def _na_changed(self, v):
+        self.node.nelecas_a = v
+
+    def _nb_changed(self, v):
+        self.node.nelecas_b = v
+
+    def _nroots_changed(self, v):
+        self.node.nroots = v
+        self.displayBox.setRange(1, max(1, v))
+        if self.node.display_root > v:
+            self.node.display_root = v
+            self.displayBox.setValue(v)
+
+    def _display_changed(self, v):
+        self.node.display_root = v
+        self.node._emit_rdm()
+
+    def _rep_changed(self, text):
+        self.node.representation = text
+        self.node._emit_rdm()
+
+    def _run_clicked(self):
+        self.node.run()
+
+    def set_status(self, text):
+        self.statusLabel.setText(text)
+
+
 def _mo_label(idx, n_occ):
     """Return Hono/Luno-style label for MO at zero-based column index."""
     k = idx + 1
@@ -282,3 +388,12 @@ class MOCoeffViewerNodeGui(NodeGUI):
 
     def update_view(self, mol, mo_coeff):
         self.main_widget().update_view(mol, mo_coeff)
+
+@node_gui(nodes.CASSCFNode)
+class CASSCFNodeGui(NodeGUI):
+    main_widget_class = CASSCFWidget
+    main_widget_pos = 'below ports'
+    color = '#cc6633'
+
+    def set_status(self, text):
+        self.main_widget().set_status(text)

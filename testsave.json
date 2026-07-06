@@ -1,0 +1,467 @@
+{
+    "general info": {
+        "type": "Ryven project file",
+        "ryven version": "3.5.0"
+    },
+    "required packages": [
+        {
+            "name": "plotting2",
+            "dir": "/home/danny/Projects/Visual-SCF/plotting2"
+        },
+        {
+            "name": "pyscf",
+            "dir": "/home/danny/Projects/Visual-SCF/pyscf"
+        }
+    ],
+    "GID": 2,
+    "version": "0.5.0",
+    "flows": {
+        "hello world": {
+            "GID": 5,
+            "algorithm mode": "data",
+            "nodes": [
+                {
+                    "GID": 6,
+                    "identifier": "pyscf.MolNode",
+                    "version": null,
+                    "state data": "gASVOwAAAAAAAAB9lCiMBGF0b22UjBBIIDAgMCAwOwpIIDEgMCAwlIwFYmFzaXOUjAZzdG8tM2eUjAdlbmFibGVklIh1Lg==",
+                    "additional data": {},
+                    "inputs": [],
+                    "outputs": [
+                        {
+                            "GID": 8,
+                            "type": "data",
+                            "label": "Molecule"
+                        }
+                    ],
+                    "pos x": 179.0,
+                    "pos y": 472.0,
+                    "main widget data": "gAR9lC4=",
+                    "unconnected ports hidden": false,
+                    "collapsed": false,
+                    "actions": {
+                        "update shape": {
+                            "method": "update_shape"
+                        },
+                        "hide unconnected ports": {
+                            "method": "hide_unconnected_ports"
+                        },
+                        "change title": {
+                            "method": "change_title"
+                        },
+                        "console ref": {
+                            "method": "console_ref_monkeypatch"
+                        }
+                    },
+                    "display title": "Molecule",
+                    "inspector widget": {}
+                },
+                {
+                    "GID": 9,
+                    "identifier": "pyscf.Guess1RDMNode",
+                    "version": null,
+                    "state data": "gASVFAAAAAAAAAB9lIwFZ3Vlc3OUjAVtaW5hb5RzLg==",
+                    "additional data": {},
+                    "inputs": [
+                        {
+                            "GID": 12,
+                            "type": "data",
+                            "label": "Molecule",
+                            "has widget": false
+                        }
+                    ],
+                    "outputs": [
+                        {
+                            "GID": 13,
+                            "type": "data",
+                            "label": "1-RDM"
+                        }
+                    ],
+                    "pos x": 459.0,
+                    "pos y": 361.0,
+                    "main widget data": "gAR9lC4=",
+                    "unconnected ports hidden": false,
+                    "collapsed": false,
+                    "actions": {
+                        "update shape": {
+                            "method": "update_shape"
+                        },
+                        "hide unconnected ports": {
+                            "method": "hide_unconnected_ports"
+                        },
+                        "change title": {
+                            "method": "change_title"
+                        },
+                        "console ref": {
+                            "method": "console_ref_monkeypatch"
+                        }
+                    },
+                    "display title": "Guess 1-RDM",
+                    "inspector widget": {}
+                },
+                {
+                    "GID": 14,
+                    "identifier": "pyscf.FockNode",
+                    "version": null,
+                    "state data": "gASVDwAAAAAAAAB9lIwCeGOUjANsZGGUcy4=",
+                    "additional data": {},
+                    "inputs": [
+                        {
+                            "GID": 19,
+                            "type": "data",
+                            "label": "Molecule",
+                            "has widget": false
+                        },
+                        {
+                            "GID": 20,
+                            "type": "data",
+                            "label": "1-RDM",
+                            "has widget": false
+                        }
+                    ],
+                    "outputs": [
+                        {
+                            "GID": 21,
+                            "type": "data",
+                            "label": "Fock Matrix"
+                        },
+                        {
+                            "GID": 22,
+                            "type": "data",
+                            "label": "Energy"
+                        }
+                    ],
+                    "pos x": 700.0,
+                    "pos y": 382.0,
+                    "main widget data": "gAR9lC4=",
+                    "unconnected ports hidden": false,
+                    "collapsed": false,
+                    "actions": {
+                        "update shape": {
+                            "method": "update_shape"
+                        },
+                        "hide unconnected ports": {
+                            "method": "hide_unconnected_ports"
+                        },
+                        "change title": {
+                            "method": "change_title"
+                        },
+                        "console ref": {
+                            "method": "console_ref_monkeypatch"
+                        }
+                    },
+                    "display title": "Fock",
+                    "inspector widget": {}
+                },
+                {
+                    "GID": 23,
+                    "identifier": "pyscf.Make1RDMNode",
+                    "version": null,
+                    "state data": "gAR9lC4=",
+                    "additional data": {},
+                    "inputs": [
+                        {
+                            "GID": 27,
+                            "type": "data",
+                            "label": "Molecules",
+                            "has widget": false
+                        },
+                        {
+                            "GID": 28,
+                            "type": "data",
+                            "label": "MO Coefficients",
+                            "has widget": false
+                        }
+                    ],
+                    "outputs": [
+                        {
+                            "GID": 29,
+                            "type": "data",
+                            "label": "1-RDM"
+                        }
+                    ],
+                    "pos x": 436.0,
+                    "pos y": 637.0,
+                    "unconnected ports hidden": false,
+                    "collapsed": false,
+                    "actions": {
+                        "update shape": {
+                            "method": "update_shape"
+                        },
+                        "hide unconnected ports": {
+                            "method": "hide_unconnected_ports"
+                        },
+                        "change title": {
+                            "method": "change_title"
+                        },
+                        "console ref": {
+                            "method": "console_ref_monkeypatch"
+                        }
+                    },
+                    "display title": "Make 1-RDM",
+                    "inspector widget": {}
+                },
+                {
+                    "GID": 30,
+                    "identifier": "pyscf.GetMOCoeffNode",
+                    "version": null,
+                    "state data": "gAR9lC4=",
+                    "additional data": {},
+                    "inputs": [
+                        {
+                            "GID": 34,
+                            "type": "data",
+                            "label": "molecule",
+                            "has widget": false
+                        },
+                        {
+                            "GID": 35,
+                            "type": "data",
+                            "label": "Fock Matrix",
+                            "has widget": false
+                        }
+                    ],
+                    "outputs": [
+                        {
+                            "GID": 36,
+                            "type": "data",
+                            "label": "MO Coefficients"
+                        }
+                    ],
+                    "pos x": 880.0,
+                    "pos y": 567.0,
+                    "unconnected ports hidden": false,
+                    "collapsed": false,
+                    "actions": {
+                        "update shape": {
+                            "method": "update_shape"
+                        },
+                        "hide unconnected ports": {
+                            "method": "hide_unconnected_ports"
+                        },
+                        "change title": {
+                            "method": "change_title"
+                        },
+                        "console ref": {
+                            "method": "console_ref_monkeypatch"
+                        }
+                    },
+                    "display title": "Get MO Coefficients",
+                    "inspector widget": {}
+                },
+                {
+                    "GID": 37,
+                    "identifier": "plotting2.MOPlotNode",
+                    "version": null,
+                    "state data": "gAR9lC4=",
+                    "additional data": {},
+                    "inputs": [
+                        {
+                            "GID": 40,
+                            "type": "data",
+                            "label": "Molecule",
+                            "has widget": false
+                        },
+                        {
+                            "GID": 41,
+                            "type": "data",
+                            "label": "MO Coefficients",
+                            "has widget": false
+                        }
+                    ],
+                    "outputs": [],
+                    "pos x": 1549.0,
+                    "pos y": 491.0,
+                    "main widget data": "gASVPQAAAAAAAAB9lCiMA2lzb5SMBDAuMTKUjAlhbHBoYV9yb3eUSwCMCGJldGFfcm93lEsBjAxiZXRhX3Zpc2libGWUiXUu",
+                    "unconnected ports hidden": false,
+                    "collapsed": false,
+                    "actions": {
+                        "update shape": {
+                            "method": "update_shape"
+                        },
+                        "hide unconnected ports": {
+                            "method": "hide_unconnected_ports"
+                        },
+                        "change title": {
+                            "method": "change_title"
+                        },
+                        "console ref": {
+                            "method": "console_ref_monkeypatch"
+                        },
+                        "hide preview": {
+                            "method": "ac_hide_mw"
+                        }
+                    },
+                    "display title": "Molecular Orbital Plotter",
+                    "inspector widget": {}
+                }
+            ],
+            "connections": [
+                {
+                    "parent node index": 0,
+                    "output port index": 0,
+                    "connected node": 1,
+                    "connected input port index": 0
+                },
+                {
+                    "parent node index": 0,
+                    "output port index": 0,
+                    "connected node": 2,
+                    "connected input port index": 0
+                },
+                {
+                    "parent node index": 0,
+                    "output port index": 0,
+                    "connected node": 4,
+                    "connected input port index": 0
+                },
+                {
+                    "parent node index": 0,
+                    "output port index": 0,
+                    "connected node": 3,
+                    "connected input port index": 0
+                },
+                {
+                    "parent node index": 0,
+                    "output port index": 0,
+                    "connected node": 5,
+                    "connected input port index": 0
+                },
+                {
+                    "parent node index": 1,
+                    "output port index": 0,
+                    "connected node": 2,
+                    "connected input port index": 1
+                },
+                {
+                    "parent node index": 2,
+                    "output port index": 0,
+                    "connected node": 4,
+                    "connected input port index": 1
+                },
+                {
+                    "parent node index": 4,
+                    "output port index": 0,
+                    "connected node": 3,
+                    "connected input port index": 1
+                },
+                {
+                    "parent node index": 4,
+                    "output port index": 0,
+                    "connected node": 5,
+                    "connected input port index": 1
+                }
+            ],
+            "output data": [
+                {
+                    "data": {
+                        "GID": 48,
+                        "identifier": "Data",
+                        "serialized": "gASVoAMAAAAAAACMDnB5c2NmLmd0by5tb2xllIwETW9sZZSTlCmBlFh7AwAAeyJhdG9tIjogIidIIDAgMCAwO1xcbkggMSAwIDAnIiwgImJhc2lzIjogIidzdG8tM2cnIiwgIm51Y21vZCI6IHt9LCAiZWNwIjogInt9IiwgIm51Y3Byb3AiOiB7fSwgIm1hZ21vbSI6IFswLCAwXSwgInBzZXVkbyI6ICJOb25lIiwgIl9hdG0iOiBbWzEsIDIwLCAxLCAyMywgMCwgMF0sIFsxLCAyNCwgMSwgMjcsIDAsIDBdXSwgIl9iYXMiOiBbWzAsIDAsIDMsIDEsIDAsIDI4LCAzMSwgMF0sIFsxLCAwLCAzLCAxLCAwLCAyOCwgMzEsIDBdXSwgIl9lbnYiOiBbMC4wLCAwLjAsIDAuMCwgMC4wLCAwLjAsIDAuMCwgMC4wLCAwLjAsIDAuMCwgMC4wLCAwLjAsIDAuMCwgMC4wLCAwLjAsIDAuMCwgMC4wLCAwLjAsIDAuMCwgMC4wLCAwLjAsIDAuMCwgMC4wLCAwLjAsIDAuMCwgMS44ODk3MjYxMjQ1NjUwNjE4LCAwLjAsIDAuMCwgMC4wLCAzLjQyNTI1MDkxLCAwLjYyMzkxMzczLCAwLjE2ODg1NTQsIDAuOTgxNzA2NzQ5MDM3MTU3LCAwLjk0OTQ2NDAwODQyMTc1NjYsIDAuMjk1OTA2NDU0MzIzNDY4XSwgIl9lY3BiYXMiOiBbXSwgImdyb3VwbmFtZSI6ICJDMSIsICJ0b3Bncm91cCI6ICJDMSIsICJfc3ltbV9vcmlnIjogbnVsbCwgIl9zeW1tX2F4ZXMiOiBudWxsLCAiX25lbGVjdHJvbiI6IG51bGwsICJfbmFvIjogbnVsbCwgIl9lbnVjIjogMC41MjkxNzcyMTA5MiwgIl9hdG9tIjogW1siSCIsIFswLjAsIDAuMCwgMC4wXV0sIFsiSCIsIFsxLjg4OTcyNjEyNDU2NTA2MTgsIDAuMCwgMC4wXV1dLCAiX2Jhc2lzIjogeyJIIjogW1swLCBbMy40MjUyNTA5MSwgMC4xNTQzMjg5N10sIFswLjYyMzkxMzczLCAwLjUzNTMyODE0XSwgWzAuMTY4ODU1NCwgMC40NDQ2MzQ1NF1dXX0sICJfZWNwIjoge30sICJfcHNldWRvIjoge30sICJfYnVpbHQiOiB0cnVlLCAidmVyYm9zZSI6IDV9lGIu"
+                    },
+                    "dependent node outputs": [
+                        0,
+                        0
+                    ]
+                },
+                {
+                    "data": {
+                        "GID": 49,
+                        "identifier": "Data",
+                        "serialized": "gASVMAQAAAAAAACMFW51bXB5LmNvcmUubXVsdGlhcnJheZSMDF9yZWNvbnN0cnVjdJSTlIwWcHlzY2YubGliLm51bXB5X2hlbHBlcpSMDk5QQXJyYXlXaXRoVGFnlJOUSwCFlEMBYpSHlFKUKEsBSwJLAoaUjAVudW1weZSMBWR0eXBllJOUjAJmOJSJiIeUUpQoSwOMATyUTk5OSv////9K/////0sAdJRiiUMgJzpXjCgh7j+tlDEIngC4P62UMQieALg/JTpXjCgh7j+UfZQojAhtb19jb2VmZpRoAmgLjAduZGFycmF5lJOUSwCFlGgHh5RSlChLAUsCSyCGlGgQiUIAAgAAMTjmORcD7z+qaZIePH/WvwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaSxphgNpuz8AAAAAAAAAABug14TpvMe/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBEIEDCcuwPwAAAAAAAAAAKzvK1Aeutb+lOuGJXMSoP0m8oTMDqOa/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADI+B5vsprLvwAAAAAAAAAA6SLQavDn1z8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFh/fF156cA/AAAAAAAAAAAhDbe2U9XFv5g64YlcxKg/SbyhMwOo5j8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMf4Hm+ymsu/AAAAAAAAAADpItBq8OfXPwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWH98XXnpwL8AAAAAAAAAAB8Nt7ZT1cU/MDjmORcD7z+paZIePH/WPwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaCxphgNpuz8AAAAAAAAAABmg14TpvMe/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBEIEDCcuwvwAAAAAAAAAALDvK1AeutT+UdJRijAZtb19vY2OUaAJoF0sAhZRoB4eUUpQoSwFLIIWUaBCJQgABAAAAAAAAAADwPwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPA/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlHSUYnV0lGIu"
+                    },
+                    "dependent node outputs": [
+                        1,
+                        0
+                    ]
+                },
+                {
+                    "data": {
+                        "GID": 54,
+                        "identifier": "Data",
+                        "serialized": "gASVqgAAAAAAAACMFW51bXB5LmNvcmUubXVsdGlhcnJheZSMDF9yZWNvbnN0cnVjdJSTlIwFbnVtcHmUjAduZGFycmF5lJOUSwCFlEMBYpSHlFKUKEsBSwJLAoaUaAOMBWR0eXBllJOUjAJmOJSJiIeUUpQoSwOMATyUTk5OSv////9K/////0sAdJRiiUMgoL92TDySvb82u58jCG/Pvza7nyMIb8+/oL92TDySvb+UdJRiLg=="
+                    },
+                    "dependent node outputs": [
+                        2,
+                        0
+                    ]
+                },
+                {
+                    "data": {
+                        "GID": 57,
+                        "identifier": "Data",
+                        "serialized": "gASVaQAAAAAAAACMFW51bXB5LmNvcmUubXVsdGlhcnJheZSMBnNjYWxhcpSTlIwFbnVtcHmUjAVkdHlwZZSTlIwCZjiUiYiHlFKUKEsDjAE8lE5OTkr/////Sv////9LAHSUYkMIQzPfFWm76L+UhpRSlC4="
+                    },
+                    "dependent node outputs": [
+                        2,
+                        1
+                    ]
+                },
+                {
+                    "data": {
+                        "GID": 60,
+                        "identifier": "Data",
+                        "serialized": "gASVqgAAAAAAAACMFW51bXB5LmNvcmUubXVsdGlhcnJheZSMDF9yZWNvbnN0cnVjdJSTlIwFbnVtcHmUjAduZGFycmF5lJOUSwCFlEMBYpSHlFKUKEsBSwJLAoaUaAOMBWR0eXBllJOUjAJmOJSJiIeUUpQoSwOMATyUTk5OSv////9K/////0sAdJRiiUMgMnHtiCli5T8xce2IKWLlPzFx7YgpYuU/MHHtiCli5T+UdJRiLg=="
+                    },
+                    "dependent node outputs": [
+                        3,
+                        0
+                    ]
+                },
+                {
+                    "data": {
+                        "GID": 58,
+                        "identifier": "Data",
+                        "serialized": "gASVqgAAAAAAAACMFW51bXB5LmNvcmUubXVsdGlhcnJheZSMDF9yZWNvbnN0cnVjdJSTlIwFbnVtcHmUjAduZGFycmF5lJOUSwCFlEMBYpSHlFKUKEsBSwJLAoaUaAOMBWR0eXBllJOUjAJmOJSJiIeUUpQoSwOMATyUTk5OSv////9K/////0sAdJRiiEMgk1beiTR/4r+SVt6JNH/iv2WuuYJa4++/Za65glrj7z+UdJRiLg=="
+                    },
+                    "dependent node outputs": [
+                        4,
+                        0
+                    ]
+                }
+            ],
+            "flow view": {
+                "drawings": [],
+                "view size": [
+                    10000.0,
+                    7000.0
+                ]
+            }
+        }
+    },
+    "addons": {
+        "Variables": {
+            "GID": 3,
+            "version": "0.4",
+            "custom state": {
+                "5": {}
+            }
+        },
+        "Logging": {
+            "GID": 4,
+            "version": "0.0.1",
+            "custom state": {}
+        }
+    },
+    "geometry": "01d9d0cb00030000fffffffdffffffe20000087a000005390000000000000000000005db0000031f000000000200000008c000000000000000000000087700000536",
+    "state": "000000ff00000000fd000000020000000000000124000003fcfc0200000001fc00000022000003fc0000014f0100001efa000000010200000002fb000000140066006c006f00770073005f0064006f0063006b0100000000ffffffff0000008300fffffffb00000014006e006f006400650073005f0064006f0063006b0100000000ffffffff0000013000ffffff000000030000087800000105fc0100000001fb000000160063006f006e0073006f006c00650044006f0063006b0100000000000008780000006100ffffff00000740000003fc00000004000000040000000800000008fc00000000",
+    "flow_uis": {
+        "5": {
+            "geometry": "01d9d0cb00030000000000000000000000000729000003c60000000000000000ffffffffffffffff000000000000000008c0000000000000000000000729000003c6",
+            "state": "000000ff00000000fd0000000100000001000002b8000003c7fc0200000001fc00000000000003c70000000000fffffffaffffffff0200000006fb0000001c0069006e00730070006500630074006f0072005f0064006f0063006b0000000000ffffffff0000003200fffffffb000000220075006e0064006f005f0068006900730074006f00720079005f0064006f0063006b0000000000ffffffff0000005a00fffffffb0000001a00730065007400740069006e00670073005f0064006f0063006b0000000000ffffffff0000004000000040fb0000001c007600610072006900610062006c00650073005f0064006f0063006b0000000000ffffffff0000008300fffffffb00000016006c006f0067006700650072005f0064006f0063006b0000000000ffffffff0000004c00fffffffb000000160073006f0075007200630065005f0064006f0063006b0000000000ffffffff0000007000ffffff0000072a000003c700000004000000040000000800000008fc00000000",
+            "view": {
+                "m11": 1.0,
+                "m12": 0.0,
+                "m13": 0.0,
+                "m21": 0.0,
+                "m22": 1.0,
+                "m23": 0.0,
+                "m31": 0.0,
+                "m32": 0.0,
+                "m33": 1.0,
+                "v_scroll": 0,
+                "h_scroll": 0
+            }
+        }
+    }
+}

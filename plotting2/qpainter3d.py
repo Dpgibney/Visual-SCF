@@ -22,6 +22,12 @@ _LIGHT_DIR = _LIGHT_DIR / np.linalg.norm(_LIGHT_DIR)
 AMBIENT = 0.35
 DIFFUSE = 0.65
 
+# Quantize Lambert intensity into this many bins. Each (color × bin) gets one
+# QColor in a palette built when lobes are set, so the per-frame draw loop
+# only switches brush when the bin index changes — collapsing what would be
+# tens of thousands of state-changes into a few hundred.
+N_LAMBERT_BINS = 16
+
 ROT_SENSITIVITY_DEG_PER_PX = 0.5
 ZOOM_FACTOR_PER_NOTCH = 0.9        # per 120 wheel units
 MIN_DISTANCE = 1.0                  # Bohr
@@ -92,6 +98,11 @@ class Painter3DCanvas(QWidget):
         self._opacity = 0.5
         self._pos_color = _hex_to_rgb('#d62728')
         self._neg_color = _hex_to_rgb('#1f77b4')
+        # caches rebuilt by set_lobes — lets paintEvent skip per-frame work
+        # that doesn't depend on the camera (combining pos/neg meshes,
+        # palette construction).
+        self._lobe_combined = None  # dict(verts, faces, color_idx) or None
+        self._lobe_palette = []     # 2 * N_LAMBERT_BINS QColors
 
         # camera
         self._yaw = 0.0
@@ -141,11 +152,54 @@ class Painter3DCanvas(QWidget):
             self._pos_color = _hex_to_rgb(pos_color)
         if neg_color is not None:
             self._neg_color = _hex_to_rgb(neg_color)
+        self._rebuild_lobe_cache()
         self.update()
 
     def clear_lobes(self):
         self._lobes = None
+        self._lobe_combined = None
         self.update()
+
+    def _rebuild_lobe_cache(self):
+        """Rebuild combined-mesh + palette caches. Called when lobes/opacity
+        /colors change; paint reuses these on every camera move."""
+        # combined verts/faces with a per-face color index (0=pos, 1=neg).
+        # Merging both lobes into one sort gives correct depth ordering of
+        # overlapping pos/neg triangles for translucent rendering.
+        self._lobe_combined = None
+        if self._lobes is not None:
+            pos_v, pos_f, neg_v, neg_f = self._lobes
+            parts = []
+            if pos_v is not None and pos_f is not None and len(pos_f):
+                parts.append((pos_v, pos_f, 0))
+            if neg_v is not None and neg_f is not None and len(neg_f):
+                parts.append((neg_v, neg_f, 1))
+            if parts:
+                v_list, f_list, c_list = [], [], []
+                v_off = 0
+                for v, f, ci in parts:
+                    v_arr = np.asarray(v, dtype=np.float64)
+                    f_arr = np.asarray(f, dtype=np.int64)
+                    v_list.append(v_arr)
+                    f_list.append(f_arr + v_off)
+                    c_list.append(np.full(len(f_arr), ci, dtype=np.int32))
+                    v_off += len(v_arr)
+                self._lobe_combined = {
+                    'verts': np.concatenate(v_list, axis=0),
+                    'faces': np.concatenate(f_list, axis=0),
+                    'color_idx': np.concatenate(c_list),
+                }
+
+        # palette: [pos_bin0..pos_binN-1, neg_bin0..neg_binN-1]
+        intensities = (np.arange(N_LAMBERT_BINS) + 0.5) / N_LAMBERT_BINS
+        alpha = int(np.clip(self._opacity * 255, 0, 255))
+        pal = []
+        for base in (self._pos_color, self._neg_color):
+            for it in intensities:
+                rgb = np.clip(base * it, 0, 255).astype(int)
+                pal.append(QColor(int(rgb[0]), int(rgb[1]),
+                                  int(rgb[2]), alpha))
+        self._lobe_palette = pal
 
     def link_camera(self, other):
         """Mirror user-driven camera changes (yaw/pitch/distance) between
@@ -209,7 +263,6 @@ class Painter3DCanvas(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing, True)
         painter.fillRect(self.rect(), DEFAULT_BG)
 
         w, h = self.width(), self.height()
@@ -226,13 +279,14 @@ class Painter3DCanvas(QWidget):
         # translucent orbital this keeps nuclei visible, which is what
         # the teaching context wants. Strict per-primitive depth sorting
         # would give physically-correct occlusion at much higher cost.
-        if self._lobes is not None:
-            pos_v, pos_f, neg_v, neg_f = self._lobes
-            self._draw_tris(painter, pos_v, pos_f, self._pos_color,
-                            R, cam_offset, focal, w, h)
-            self._draw_tris(painter, neg_v, neg_f, self._neg_color,
-                            R, cam_offset, focal, w, h)
+        #
+        # AA off for the iso pass: triangles fully tile each other so AA
+        # along interior edges contributes no visible quality but costs a
+        # large fraction of the frame budget. AA stays on for atoms/bonds.
+        painter.setRenderHint(QPainter.Antialiasing, False)
+        self._draw_lobes(painter, R, cam_offset, focal, w, h)
 
+        painter.setRenderHint(QPainter.Antialiasing, True)
         self._draw_bonds(painter, R, cam_offset, focal, w, h)
         self._draw_atoms(painter, R, cam_offset, focal, w, h)
 
@@ -240,60 +294,78 @@ class Painter3DCanvas(QWidget):
 
     # ---- per-primitive ------------------------------------------------
 
-    def _draw_tris(self, painter, verts, faces, base_rgb,
-                   R, cam_offset, focal, w, h):
-        if verts is None or faces is None or len(faces) == 0:
+    def _draw_lobes(self, painter, R, cam_offset, focal, w, h):
+        cache = self._lobe_combined
+        if cache is None:
             return
-        eye = (verts - self._target) @ R.T + cam_offset       # (V, 3)
-        tri = eye[faces]                                       # (M, 3, 3)
+        verts = cache['verts']
+        faces = cache['faces']
+        color_idx = cache['color_idx']
 
+        # transform unique verts to eye space ONCE (V scales like √M for a
+        # marching-cubes mesh — projecting per vertex instead of per face
+        # cuts QPointF allocations to about a third).
+        eye = (verts - self._target) @ R.T + cam_offset       # (V, 3)
+
+        # per-face cull/normal/depth
+        tri = eye[faces]                                       # (M, 3, 3)
         v0 = tri[:, 0]
         e1 = tri[:, 1] - v0
         e2 = tri[:, 2] - v0
-        n = np.cross(e1, e2)
-        n_len = np.linalg.norm(n, axis=1)
-        n_unit = n / np.clip(n_len, 1e-12, None)[:, None]
+        n = np.cross(e1, e2)                                   # (M, 3)
+        centroid = tri.mean(axis=1)                            # (M, 3)
 
-        # backface cull: face visible if its normal points roughly toward
-        # the camera (negative of view ray from origin to centroid).
-        centroid = tri.mean(axis=1)
-        view_len = np.linalg.norm(centroid, axis=1)
-        view_unit = centroid / np.clip(view_len, 1e-12, None)[:, None]
-        facing = -np.einsum('ij,ij->i', n_unit, view_unit)
-
+        # backface cull: sign of dot(n, centroid) is enough — a normalize
+        # would be redundant. Front-facing means n points back toward the
+        # camera, i.e. dot(n, view_ray = centroid) < 0.
+        n_dot_c = np.einsum('ij,ij->i', n, centroid)
         in_front = (tri[:, :, 2] > NEAR_Z).all(axis=1)
-        keep = (facing > 0) & in_front & (n_len > 1e-12)
+        keep = (n_dot_c < 0) & in_front
         if not keep.any():
             return
 
-        tri = tri[keep]
-        n_unit = n_unit[keep]
+        faces_k = faces[keep]
+        n_k = n[keep]
+        centroid_k = centroid[keep]
+        color_k = color_idx[keep]
 
-        depth = tri[:, :, 2].mean(axis=1)
-        order = np.argsort(-depth)         # back-to-front
-        tri = tri[order]
-        n_unit = n_unit[order]
+        # depth-sort back-to-front (correct order for alpha blending across
+        # both pos and neg lobes — we merged them in _rebuild_lobe_cache).
+        depth = centroid_k[:, 2]
+        order = np.argsort(-depth)
+        faces_k = faces_k[order]
+        n_k = n_k[order]
+        color_k = color_k[order]
 
-        # Lambert shading
+        # Lambert (only kept faces are normalized)
+        n_len = np.sqrt(np.einsum('ij,ij->i', n_k, n_k))
+        n_unit = n_k / np.clip(n_len, 1e-12, None)[:, None]
         lambert = np.clip(n_unit @ _LIGHT_DIR, 0.0, 1.0)
-        intensity = AMBIENT + DIFFUSE * lambert            # (M,)
+        intensity = AMBIENT + DIFFUSE * lambert
 
-        # project to screen
-        z = tri[:, :, 2]
-        sx = w * 0.5 + focal * tri[:, :, 0] / z
-        sy = h * 0.5 - focal * tri[:, :, 1] / z
+        # palette index per face: color_group * N_LAMBERT_BINS + intensity_bin
+        bin_idx = np.clip((intensity * N_LAMBERT_BINS).astype(np.int32),
+                          0, N_LAMBERT_BINS - 1)
+        palette_idx = (color_k * N_LAMBERT_BINS + bin_idx).tolist()
 
-        rgb = np.clip(base_rgb[None, :] * intensity[:, None], 0, 255).astype(np.int32)
-        alpha = int(np.clip(self._opacity * 255, 0, 255))
+        # project all unique verts to screen and cache QPointF per vertex.
+        # Behind-camera verts get junk coordinates but kept faces never
+        # reference them (in_front filter), so nothing draws those.
+        z_safe = np.where(eye[:, 2] > NEAR_Z, eye[:, 2], 1.0)
+        sx = (w * 0.5 + focal * eye[:, 0] / z_safe).tolist()
+        sy = (h * 0.5 - focal * eye[:, 1] / z_safe).tolist()
+        pts = [QPointF(x, y) for x, y in zip(sx, sy)]
 
+        faces_list = faces_k.tolist()
+        palette = self._lobe_palette
         painter.setPen(Qt.NoPen)
-        for k in range(tri.shape[0]):
-            painter.setBrush(QColor(int(rgb[k, 0]), int(rgb[k, 1]),
-                                    int(rgb[k, 2]), alpha))
-            poly = QPolygonF([QPointF(sx[k, 0], sy[k, 0]),
-                              QPointF(sx[k, 1], sy[k, 1]),
-                              QPointF(sx[k, 2], sy[k, 2])])
-            painter.drawPolygon(poly)
+        last_pi = -1
+        for pi, abc in zip(palette_idx, faces_list):
+            if pi != last_pi:
+                painter.setBrush(palette[pi])
+                last_pi = pi
+            a, b, c = abc
+            painter.drawPolygon(QPolygonF([pts[a], pts[b], pts[c]]))
 
     def _draw_bonds(self, painter, R, cam_offset, focal, w, h):
         if not self._bonds or len(self._atom_pos) == 0:
