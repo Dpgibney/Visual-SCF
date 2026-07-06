@@ -653,7 +653,7 @@ What happens when \code{scripts/run.sh} executes
 \begin{enumerate}[itemsep=1pt]
 \item \code{ryven.main.Ryven.run()} parses CLI args into a \code{Config}
       (\code{main/config.py}).
-      \emph{This is where the local fork's one patch lives:} upstream declared the
+      \emph{A local fork patch lives here:} upstream declared the
       \code{nodes} default as \code{set()}, the fork changes it to \code{list()} so
       multiple \code{-n} packages accumulate in order instead of being deduplicated
       into an unordered set.
@@ -673,9 +673,14 @@ What happens when \code{scripts/run.sh} executes
       hooks), registers the exported node and data types with the core session, and
       --- if a project was given --- calls \code{session.load()}, which cascades into
       the flow/node loading sequence of \S\ref{sec:serialization}.
-\item \code{app.exec\_()} enters the Qt event loop; by default stdout/stderr are
-      redirected into the in-app console (\code{-{}-verbose} keeps them on the
-      terminal).
+\item \code{app.exec\_()} enters the Qt event loop. Unless \code{-{}-verbose} is
+      given, stdout/stderr are redirected into the in-app console --- and the fork
+      patches this in two ways: \code{RedirectOutput}
+      (\code{gui/main\_console.py}) implements the file-like interface
+      (\code{flush}/\code{isatty}/\code{writelines}) that PySCF's logger requires,
+      and the redirection is installed \emph{before} \code{MainWindow} is built, so
+      objects that capture \code{sys.stdout} at construction time (PySCF
+      \code{Mole}s created during project load) also log to the console.
 \end{enumerate}
 
 % ==================================================================
