@@ -83,7 +83,15 @@ class ShowMOCoeff(MatrixNodeBase):
 
 
 class ShowMatrix(MatrixNodeBase):
-    '''For displaying an arbitrary matrix''' 
+    """<p><b>Show Matrix</b> — displays any matrix flowing through an edge
+    as formatted, rounded (4 decimals) text inside the node, and passes it
+    through unchanged.</p>
+    <p>Drop it anywhere to inspect raw numbers: overlap, Fock, density, or
+    coefficient matrices. Spin-resolved (3-D) arrays are shown as
+    side-by-side &alpha;|&beta; blocks. Right-click the node to hide or
+    show the preview.</p>
+    <p><b>Input</b> &mdash; any numpy array or scalar.<br>
+    <b>Output</b> &mdash; the same matrix, unchanged.</p>"""
     title = 'Show Matrix'
 
     def get_mat(self):

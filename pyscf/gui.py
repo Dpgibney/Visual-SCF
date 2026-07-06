@@ -8,6 +8,7 @@ from qtpy.QtCore import Qt
 from ryven.gui_env import *
 
 from . import nodes
+from .mathinspector import equation_inspector
 
 class MolInputWidget(NodeMainWidget, QWidget):
     """Atom geometry, basis set, charge, and spin (2S) for a Molecule node.
@@ -356,10 +357,14 @@ class SCFStepWidget(NodeMainWidget, QWidget):
 @node_gui(nodes.MolNode)
 class MolNodeGui(NodeGUI):
     main_widget_class = MolInputWidget
+    inspector_widget_class = equation_inspector('MolNode')
+    wrap_inspector_in_default = True
 
 @node_gui(nodes.FockNode)
 class FockNodeGui(NodeGUI):
     main_widget_class = FockWidget
+    inspector_widget_class = equation_inspector('FockNode')
+    wrap_inspector_in_default = True
 
     def __init__(self, params):
         super().__init__(params)
@@ -371,11 +376,15 @@ class FockNodeGui(NodeGUI):
 @node_gui(nodes.Guess1RDMNode)
 class GuessNodeGui(NodeGUI):
     main_widget_class = GuessWidget
+    inspector_widget_class = equation_inspector('Guess1RDMNode')
+    wrap_inspector_in_default = True
 
 @node_gui(nodes.SCFStepNode)
 class SCFStepNodeGui(NodeGUI):
     main_widget_class = SCFStepWidget
     main_widget_pos = 'below ports'
+    inspector_widget_class = equation_inspector('SCFStepNode')
+    wrap_inspector_in_default = True
 
     def update_step_count(self, n):
         self.main_widget().update_step_count(n)
@@ -385,6 +394,8 @@ class MOCoeffViewerNodeGui(NodeGUI):
     main_widget_class = MOCoeffViewerWidget
     main_widget_pos = 'below ports'
     color = '#3344ff'
+    inspector_widget_class = equation_inspector('MOCoeffViewerNode')
+    wrap_inspector_in_default = True
 
     def update_view(self, mol, mo_coeff):
         self.main_widget().update_view(mol, mo_coeff)
@@ -394,6 +405,43 @@ class CASSCFNodeGui(NodeGUI):
     main_widget_class = CASSCFWidget
     main_widget_pos = 'below ports'
     color = '#cc6633'
+    inspector_widget_class = equation_inspector('CASSCFNode')
+    wrap_inspector_in_default = True
 
     def set_status(self, text):
         self.main_widget().set_status(text)
+
+
+# The following nodes have no main widget; they are bound to a NodeGUI
+# subclass purely to attach the rendered-equation inspector panel. All
+# other attributes are NodeGUI defaults, so their appearance is unchanged.
+
+@node_gui(nodes.GetMOCoeffNode)
+class GetMOCoeffNodeGui(NodeGUI):
+    inspector_widget_class = equation_inspector('GetMOCoeffNode')
+    wrap_inspector_in_default = True
+
+@node_gui(nodes.Make1RDMNode)
+class Make1RDMNodeGui(NodeGUI):
+    inspector_widget_class = equation_inspector('Make1RDMNode')
+    wrap_inspector_in_default = True
+
+@node_gui(nodes.RHFNode)
+class RHFNodeGui(NodeGUI):
+    inspector_widget_class = equation_inspector('RHFNode')
+    wrap_inspector_in_default = True
+
+@node_gui(nodes.UHFNode)
+class UHFNodeGui(NodeGUI):
+    inspector_widget_class = equation_inspector('UHFNode')
+    wrap_inspector_in_default = True
+
+@node_gui(nodes.RKSNode)
+class RKSNodeGui(NodeGUI):
+    inspector_widget_class = equation_inspector('RKSNode')
+    wrap_inspector_in_default = True
+
+@node_gui(nodes.UKSNode)
+class UKSNodeGui(NodeGUI):
+    inspector_widget_class = equation_inspector('UKSNode')
+    wrap_inspector_in_default = True

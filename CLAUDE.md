@@ -36,6 +36,9 @@ Each of the three top-level directories is a Ryven nodes package, registered sep
 Each package follows the same shape:
 - `nodes.py` — pure-logic `Node` subclasses; ends with `export_nodes([...])` and an `@on_gui_load` hook that does `from . import gui`. Nothing in `nodes.py` may import Qt — it must be importable in headless contexts.
 - `gui.py` — the Qt widgets (`NodeMainWidget` subclasses) and `@node_gui(NodeClass)` bindings. This is where PySide6 / matplotlib / `qpainter3d` live.
+- `mathinspector.py` (pyscf and plotting2 only) — rendered-LaTeX equation panels for the inspector dock. `EQUATIONS` maps node class names to rows of `('t', html)` captions and `('e', latex)` equations; `equation_inspector('<NodeClass>')` builds the `NodeInspectorWidget` subclass that `gui.py` attaches via `inspector_widget_class` + `wrap_inspector_in_default = True`. Equations render through matplotlib **mathtext** (no TeX install; no `\tfrac`, no environments — one line per entry). The renderer half of the two copies is intentionally duplicated (packages can't reliably cross-import); keep them in sync.
+
+Node docstrings are user-facing: Ryven shows `__doc__` as the add-node-list tooltip and in the inspector's description area, both rendered as Qt rich text. Write them as HTML starting with `<p>` (Qt's rich-text sniffing keys on the leading tag), using the Qt subset only (`<p> <b> <i> <tt> <br> <sub> <sup>`, entities). Every exported node must have one.
 
 ### The Ryven node contract used here
 

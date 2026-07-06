@@ -33,7 +33,13 @@ def get_isosurface(mol, mo_coeff, orbital, iso_val, bnds, beta=False, grid_point
     return (pos_verts, pos_faces, neg_verts, neg_faces)
 
 class LinePlotNode(Node):
-    """Generates a line graph"""
+    """<p><b>LinePlot</b> — plots up to five scalar inputs as a line graph
+    (input index on the x-axis, value on the y-axis), redrawn whenever any
+    input changes.</p>
+    <p>Useful for comparing a handful of values side by side &mdash; e.g.
+    wire the Energy outputs of several Fock nodes in to compare guesses or
+    functionals. Unconnected inputs are simply skipped.</p>
+    <p><b>Inputs</b> &mdash; 1&ndash;5: any numeric scalars.</p>"""
 
     title = 'LinePlot'
     #tags = ['random', 'numbers']
@@ -58,7 +64,20 @@ class LinePlotNode(Node):
         return hasattr(self, 'gui')
 
 class MOPlotNode(Node):
-    """Generates an interactive surface"""
+    """<p><b>Molecular Orbital Plotter</b> — renders a molecular orbital
+    &psi;<sub>i</sub> = &Sigma;<sub>&mu;</sub> C<sub>&mu;i</sub>
+    &chi;<sub>&mu;</sub> as a 3D isosurface around the ball-and-stick
+    molecule, inline in the node.</p>
+    <p>Pick an orbital from the list (labeled relative to the frontier:
+    Hono, Luno, ...; unrestricted coefficients get separate &alpha; and
+    &beta; lists and viewers). Red and blue lobes are the +c and &minus;c
+    surfaces of the wavefunction &mdash; the sign pattern that determines
+    bonding vs. antibonding character. <b>Isosurface</b> sets c,
+    <b>Opacity</b> the lobe transparency, <b>Grid points</b> the resolution
+    of the marching-cubes grid (higher = smoother but slower, cubic cost).
+    Left-drag rotates, scroll zooms.</p>
+    <p><b>Inputs</b> &mdash; Molecule; MO Coefficients. Feed live SCF
+    coefficients in and the picture updates every Step.</p>"""
 
     title = "Molecular Orbital Plotter"
     init_inputs = [
@@ -93,7 +112,16 @@ class MOPlotNode(Node):
         return hasattr(self, 'gui')
 
 class AOPlotNode(Node):
-    """Generates an interactive surface"""
+    """<p><b>Atomic Orbital Plotter</b> — renders one basis function
+    &chi;<sub>&mu;</sub> (a contracted Gaussian centered on an atom) as a
+    3D isosurface, inline in the node.</p>
+    <p>These are the raw ingredients the SCF mixes into molecular orbitals
+    &mdash; inspect them to see what "sto-3g on H" actually looks like, or
+    why polarization functions matter. The list shows PySCF's AO labels
+    (atom, shell, angular part). Controls are the same as the MO plotter:
+    iso value, opacity, grid resolution; left-drag rotates, scroll
+    zooms.</p>
+    <p><b>Input</b> &mdash; Molecule (the basis comes from it).</p>"""
 
     title = "Atomic Orbital Plotter"
     init_inputs = [
@@ -123,6 +151,11 @@ class AOPlotNode(Node):
 
 
 class PrintNode(Node):
+    """<p><b>Print</b> — prints whatever arrives on its input to the
+    editor's console whenever it updates. A quick probe for inspecting any
+    edge of the flow.</p>
+    <p><b>Input</b> &mdash; anything.</p>"""
+
     title = 'Print'
     init_inputs = [NodeInputType()]
 

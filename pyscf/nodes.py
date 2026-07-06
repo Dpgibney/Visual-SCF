@@ -5,7 +5,16 @@ class MolData(Data):
     pass
 
 class MolNode(Node):
-    """Defines the molecule and associated basis set"""
+    """<p><b>Molecule</b> — defines the molecular system and its AO basis;
+    the starting point of every flow.</p>
+    <p>Enter a geometry, one <tt>Symbol x y z</tt> per line in &Aring;ngstrom
+    (e.g. <tt>H 0 0 0; H 0 0 0.74</tt>), a basis set name (<tt>sto-3g</tt>,
+    <tt>cc-pvdz</tt>, <tt>def2-svp</tt>, ...), the total charge, and the spin
+    as 2S = n<sub>&alpha;</sub> &minus; n<sub>&beta;</sub> (0 = singlet,
+    1 = doublet, ...). Edits are staged; <b>Build</b> constructs the PySCF
+    molecule (integrals, electron counts) and pushes it downstream.</p>
+    <p><b>Output</b> &mdash; Molecule: the built <tt>pyscf.gto.Mole</tt>
+    object, passed by reference to all consumers.</p>"""
 
     title = 'Molecule'
     tags = ['Integrals']
@@ -62,7 +71,19 @@ class MolNode(Node):
             self.build()
 
 class FockNode(Node):
-    """Returns the fock matrix from the given 1-RDM"""
+    """<p><b>Fock</b> — builds the effective one-electron (Fock) matrix
+    F[D] = h<sub>core</sub> + J[D] &minus; &frac12;K[D] for the density
+    matrix D on its input, and evaluates the total energy of that
+    density.</p>
+    <p>Leave the <b>XC Functional</b> field blank for Hartree&ndash;Fock;
+    enter any PySCF functional name (<tt>pbe</tt>, <tt>b3lyp</tt>,
+    <tt>tpss</tt>, ...) to build the Kohn&ndash;Sham matrix
+    h + J + V<sub>xc</sub> instead. Select the node to see the full
+    equations in the inspector panel.</p>
+    <p><b>Inputs</b> &mdash; Molecule; 1-RDM (density matrix D).<br>
+    <b>Outputs</b> &mdash; Fock Matrix (AO basis); Energy: total energy
+    E[D] including nuclear repulsion &mdash; watch it drop as the SCF
+    iterates.</p>"""
 
     title = 'Fock'
     tags = ['Fock']
@@ -115,7 +136,15 @@ class FockNode(Node):
         self.xc = data.get('xc', '')
 
 class GetMOCoeffNode(Node):
-    """Diagonalizes the Fock Matrix and returns the eigenvectors sorted"""
+    """<p><b>Get MO Coefficients</b> — solves the Roothaan&ndash;Hall
+    generalized eigenvalue problem FC = SC&epsilon; in the non-orthogonal
+    AO basis (via <tt>scipy.linalg.eigh</tt> with the overlap matrix S).</p>
+    <p>Each eigenvector (column of C) is a molecular orbital expressed as a
+    linear combination of atomic orbitals; columns are sorted by orbital
+    energy &epsilon;<sub>i</sub>, lowest first.</p>
+    <p><b>Inputs</b> &mdash; Molecule (supplies S); Fock Matrix.<br>
+    <b>Output</b> &mdash; MO Coefficients: the n<sub>AO</sub> &times;
+    n<sub>MO</sub> matrix C.</p>"""
 
     title = 'Get MO Coefficients'
     tags = ['MO Coefficients']
@@ -153,7 +182,19 @@ class GetMOCoeffNode(Node):
 
 
 class Guess1RDMNode(Node):
-    """Allows the user to choose an initial guess density matrix"""
+    """<p><b>Guess 1-RDM</b> — produces the initial one-particle density
+    matrix D&#8304; that seeds the SCF iteration.</p>
+    <p>The SCF equations are nonlinear, so a starting point is required;
+    a good guess converges in fewer steps, and when several SCF solutions
+    exist the guess decides which one you find. Choose the scheme in the
+    dropdown: <b>minao</b> (superposition of minimal-basis atomic densities,
+    default), <b>atom</b> (superposition of atomic HF densities),
+    <b>huckel</b> (extended H&uuml;ckel), <b>hcore</b>/<b>1e</b>
+    (core Hamiltonian only &mdash; ignores electron repulsion, poor for
+    molecules), <b>sap</b> (superposition of atomic potentials).</p>
+    <p><b>Input</b> &mdash; Molecule.<br>
+    <b>Output</b> &mdash; 1-RDM: the guess density in the AO basis. Wire it
+    to the <i>Initial 1-RDM</i> input of an SCF Step node.</p>"""
 
     title = 'Guess 1-RDM'
     tags = ['1-RDM']
@@ -189,7 +230,18 @@ class Guess1RDMNode(Node):
         self.guess = data.get('guess', 'minao')
 
 class Make1RDMNode(Node):
-    """Makes the 1-RDM from a set of MO Coefficients and the Molecules number of electrons (alpha,beta)"""
+    """<p><b>Make 1-RDM</b> — occupies the lowest MOs with the molecule's
+    electrons (aufbau principle) and contracts them into a new density
+    matrix D<sub>&mu;&nu;</sub> = &Sigma;<sub>i&#8712;occ</sub>
+    C<sub>&mu;i</sub>C<sub>&nu;i</sub> per spin.</p>
+    <p>With restricted coefficients (2-D C) both spins share the same
+    orbitals and one spin-summed D is emitted; with unrestricted
+    coefficients (3-D C) separate &alpha; and &beta; matrices are built
+    using n<sub>&alpha;</sub> and n<sub>&beta;</sub> from the molecule.</p>
+    <p><b>Inputs</b> &mdash; Molecule (electron counts); MO
+    Coefficients.<br>
+    <b>Output</b> &mdash; 1-RDM. Wire it back to the <i>New 1-RDM</i> input
+    of the SCF Step node to close the SCF loop.</p>"""
 
     title = 'Make 1-RDM'
     tags = ['1-RDM']
@@ -239,6 +291,17 @@ class Make1RDMNode(Node):
         
 
 class RHFNode(Node):
+    """<p><b>RHF</b> — runs a complete restricted Hartree&ndash;Fock
+    calculation to convergence in one go (PySCF <tt>scf.RHF</tt>).</p>
+    <p>Restricted means each spatial orbital holds an &alpha;,&beta;
+    electron pair. This is the "do everything" counterpart of the
+    step-by-step Guess &rarr; Fock &rarr; Diagonalize &rarr; SCF Step loop:
+    use it when you want converged orbitals without watching the
+    iteration.</p>
+    <p><b>Input</b> &mdash; Molecule.<br>
+    <b>Output</b> &mdash; MO Coefficients of the converged solution
+    (energies and convergence report appear in the console).</p>"""
+
     title = 'RHF'
     init_inputs = [NodeInputType(label="Molecule")]
     init_outputs = [NodeOutputType(label="Mo Coefficients")]
@@ -252,6 +315,18 @@ class RHFNode(Node):
         )
 
 class UHFNode(Node):
+    """<p><b>UHF</b> — runs an unrestricted Hartree&ndash;Fock calculation
+    to convergence (PySCF <tt>scf.UHF</tt>): &alpha; and &beta; electrons
+    get independent spatial orbitals.</p>
+    <p>The initial &beta; density is deliberately perturbed to break
+    &alpha;/&beta; symmetry &mdash; without this, UHF collapses back onto
+    the RHF solution and cannot show symmetry breaking (e.g. correct
+    H&#8322; dissociation into two neutral atoms).</p>
+    <p><b>Input</b> &mdash; Molecule.<br>
+    <b>Output</b> &mdash; MO Coefficients as a (2, n<sub>AO</sub>,
+    n<sub>MO</sub>) array: index 0 = &alpha; orbitals, 1 = &beta;.
+    Downstream viewers show separate &alpha;/&beta; panels for it.</p>"""
+
     title = 'UHF'
     init_inputs = [NodeInputType(label="Molecule")]
     init_outputs = [NodeOutputType(label="Mo Coefficients")]
@@ -268,6 +343,16 @@ class UHFNode(Node):
         )
 
 class RKSNode(Node):
+    """<p><b>RKS-DFT</b> — runs a restricted Kohn&ndash;Sham DFT
+    calculation to convergence (PySCF <tt>dft.RKS</tt>, default
+    functional).</p>
+    <p>Kohn&ndash;Sham theory replaces Hartree&ndash;Fock exchange with an
+    exchange&ndash;correlation functional of the density; the orbitals are
+    those of a fictitious non-interacting system reproducing the true
+    density. Results go to the console; this node currently has no data
+    outputs.</p>
+    <p><b>Input</b> &mdash; Molecule.</p>"""
+
     title = 'RKS-DFT'
     init_inputs = [NodeInputType()]
 
@@ -279,6 +364,14 @@ class RKSNode(Node):
         return hasattr(self, 'gui')
 
 class UKSNode(Node):
+    """<p><b>UKS-DFT</b> — runs an unrestricted Kohn&ndash;Sham DFT
+    calculation to convergence (PySCF <tt>dft.UKS</tt>), with independent
+    &alpha; and &beta; densities each seeing its own XC potential.</p>
+    <p>As in the UHF node, the &beta; initial guess is perturbed so the
+    solution is allowed to break spin symmetry. Results go to the console;
+    this node currently has no data outputs.</p>
+    <p><b>Input</b> &mdash; Molecule.</p>"""
+
     title = 'UKS-DFT'
     init_inputs = [NodeInputType()]
 
@@ -291,8 +384,25 @@ class UKSNode(Node):
 
 
 class CASSCFNode(Node):
-    """CASSCF with selectable active space, number of roots, and 1-RDM
-    representation. Takes initial MOs from an upstream RHF/UHF node."""
+    """<p><b>CASSCF</b> — Complete Active Space SCF: a full CI expansion
+    over a chosen set of "active" orbitals and electrons, optimized
+    simultaneously with the orbital shapes. The tool of choice where a
+    single determinant fails (bond breaking, diradicals, excited
+    states).</p>
+    <p>Set the active space &mdash; <b>ncas</b> orbitals holding
+    <b>n&alpha;</b> + <b>n&beta;</b> electrons, written CAS(n<sub>e</sub>,
+    n<sub>cas</sub>) &mdash; and the number of <b>roots</b> (&gt;1 runs
+    equal-weight state-averaging over ground and excited states;
+    <b>Display</b> picks which root's density is emitted). The 1-RDM can be
+    <b>spin-free</b> (&gamma;<sup>&alpha;</sup> + &gamma;<sup>&beta;</sup>,
+    fractional occupations visible) or <b>spin-resolved</b>
+    ([&gamma;<sup>&alpha;</sup>, &gamma;<sup>&beta;</sup>]). CASSCF is
+    expensive, so it only recomputes on <b>Run</b>; the status line shows
+    the energy or what went wrong.</p>
+    <p><b>Inputs</b> &mdash; Molecule; MO Coefficients (starting orbitals
+    from an upstream RHF/UHF node; UHF orbitals or n&alpha; &ne; n&beta;
+    switch to the unrestricted solver).<br>
+    <b>Output</b> &mdash; 1-RDM of the displayed root.</p>"""
 
     title = 'CASSCF'
     tags = ['1-RDM']
@@ -472,9 +582,19 @@ class CASSCFNode(Node):
 
 
 class MOCoeffViewerNode(Node):
-    """Displays MO coefficients as a table with AO labels (rows), MO
-    labels (Hono/Luno + offsets) and occupations as columns. Pedagogically
-    emphasizes that C is the unitary transform from AO basis to MO basis."""
+    """<p><b>MO Coefficient Viewer</b> — shows the coefficient matrix C as
+    a labeled, color-coded table: each column is one molecular orbital
+    written as a combination of the atomic orbitals down the rows,
+    &phi;<sub>i</sub> = &Sigma;<sub>&mu;</sub> C<sub>&mu;i</sub>
+    &chi;<sub>&mu;</sub>.</p>
+    <p>Rows carry PySCF AO labels (atom, shell, angular part), columns are
+    labeled relative to the frontier orbitals (Hono&minus;1, Hono, Luno,
+    Luno+1, ...), and the top row shows occupations. Cells are shaded by
+    magnitude &mdash; blue positive, red negative &mdash; so the matrix
+    reads like a heat map of the AO&rarr;MO transform. Unrestricted
+    coefficients get separate &alpha; and &beta; tables.</p>
+    <p><b>Inputs</b> &mdash; Molecule (labels, electron counts); MO
+    Coefficients.</p>"""
 
     title = 'MO Coefficient Viewer'
     tags = ['MO Coefficients']
@@ -497,12 +617,20 @@ class MOCoeffViewerNode(Node):
 
 
 class SCFStepNode(Node):
-    """Single-step iterator that closes the SCF loop.
-
-    Wire Guess1RDM → Initial 1-RDM, and Make1RDM → New 1-RDM (the feedback
-    edge). The Current 1-RDM output feeds the Fock node. The Reset button
-    re-emits the initial guess and zeros the step counter; Step emits the
-    most recent New 1-RDM and increments the counter."""
+    """<p><b>SCF Step</b> — the hand-crank of the self-consistent field
+    loop: each <b>Step</b> click advances the iteration
+    D<sup>(k)</sup> &rarr; D<sup>(k+1)</sup> by one cycle, so you can watch
+    energy, orbitals, and density evolve toward self-consistency.</p>
+    <p><b>Wiring:</b> Guess 1-RDM &rarr; <i>Initial 1-RDM</i>; Make 1-RDM
+    &rarr; <i>New 1-RDM</i> (the feedback edge); <i>Current 1-RDM</i>
+    &rarr; Fock. This closes the cycle Fock &rarr; diagonalize &rarr;
+    rebuild density &rarr; back to Fock.</p>
+    <p><b>Buttons:</b> <b>Reset</b> re-emits the initial guess and zeros
+    the step counter (also happens automatically when the guess first
+    arrives); <b>Step</b> emits the most recent fed-back density and
+    increments the counter. The iteration is converged when stepping no
+    longer changes anything downstream.</p>
+    <p><b>Output</b> &mdash; Current 1-RDM: the density of iteration k.</p>"""
 
     title = 'SCF Step'
     tags = ['1-RDM']

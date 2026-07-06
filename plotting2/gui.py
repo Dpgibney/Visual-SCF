@@ -6,6 +6,7 @@ from qtpy.QtCore import Qt
 from ryven.gui_env import *
 
 from . import nodes
+from .mathinspector import equation_inspector
 from .qpainter3d import Painter3DCanvas
 
 import matplotlib
@@ -399,6 +400,8 @@ class MOPlotNodeGui(NodeGUI):
     main_widget_class = SurfacePlotWidget
     main_widget_pos = 'below ports'
     color = '#fcba03'
+    inspector_widget_class = equation_inspector('MOPlotNode')
+    wrap_inspector_in_default = True
 
     def __init__(self, params):
         super().__init__(params)
@@ -453,6 +456,8 @@ class AOPlotNodeGui(NodeGUI):
     main_widget_class = SurfacePlotWidget
     main_widget_pos = 'below ports'
     color = '#fcba03'
+    inspector_widget_class = equation_inspector('AOPlotNode')
+    wrap_inspector_in_default = True
 
     def __init__(self, params):
         super().__init__(params)
