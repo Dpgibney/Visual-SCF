@@ -114,6 +114,25 @@ EQUATIONS = {
               r'\chi_\nu(\mathbf{r})\,d\mathbf{r}'),
     ],
 
+    'GeomOptNode': [
+        ('t', 'Finds the nuclear arrangement minimizing the electronic '
+              'energy — the nearest local minimum of the potential energy '
+              'surface:'),
+        ('e', r'\mathbf{R}^{\star} = \mathrm{arg\,min}_{\mathbf{R}}\;'
+              r'E(\mathbf{R})'),
+        ('t', 'At the minimum the force on every nucleus vanishes:'),
+        ('e', r'\mathbf{F}_A = -\nabla_{R_A} E(\mathbf{R}) = 0'),
+        ('t', 'PySCF supplies analytic gradients; geomeTRIC takes '
+              'quasi-Newton steps in internal coordinates using a local '
+              'quadratic model of the surface:'),
+        ('e', r'E(\mathbf{R}+\Delta\mathbf{R}) \approx E(\mathbf{R})'
+              r' + \mathbf{g}^{T}\Delta\mathbf{R}'
+              r' + \frac{1}{2}\,\Delta\mathbf{R}^{T}\mathbf{H}\,'
+              r'\Delta\mathbf{R}'),
+        ('t', 'Each step is a full SCF at the trial geometry — watch the '
+              'energy trajectory in the console.'),
+    ],
+
     'Guess1RDMNode': [
         ('t', 'The SCF equations are nonlinear, so iteration needs a starting '
               'density matrix D⁽⁰⁾:'),

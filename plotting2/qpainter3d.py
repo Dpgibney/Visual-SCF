@@ -77,7 +77,15 @@ class Painter3DCanvas(QWidget):
       - atoms (radial-gradient discs with CPK colors).
 
     Mouse left-drag rotates around the scene centroid; wheel zooms.
+
+    Projection is orthographic by default (the norm for molecule viewers:
+    equal-sized atoms front and back, and the wheel is a clean uniform
+    zoom). Set `projection = 'perspective'` for a pinhole camera instead —
+    there the wheel acts as a dolly whose focal length is coupled to
+    distance, so it changes foreshortening more than mid-plane size.
     """
+
+    projection = 'orthographic'   # or 'perspective'
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -272,7 +280,15 @@ class Painter3DCanvas(QWidget):
 
         R = _rotation_matrix(self._yaw, self._pitch)
         cam_offset = np.array([0.0, 0.0, self._distance])
-        focal = 0.5 * min(w, h) * (self._distance / max(self._scene_radius, 1.0))
+        if self.projection == 'perspective':
+            # pinhole focal length (px); screen size ~ focal * extent / z
+            focal = 0.5 * min(w, h) * (self._distance / max(self._scene_radius, 1.0))
+        else:
+            # orthographic scale (px per Bohr); calibrated so the initial
+            # fit distance (3 * scene_radius) frames the molecule like the
+            # perspective camera did, and wheel-driven _distance changes
+            # become a uniform zoom.
+            focal = 1.5 * min(w, h) / self._distance
 
         # iso lobes first (back), then bonds, then atoms (front).
         # Atoms+bonds are intentionally drawn over the lobes — for a
@@ -315,12 +331,18 @@ class Painter3DCanvas(QWidget):
         n = np.cross(e1, e2)                                   # (M, 3)
         centroid = tri.mean(axis=1)                            # (M, 3)
 
-        # backface cull: sign of dot(n, centroid) is enough — a normalize
-        # would be redundant. Front-facing means n points back toward the
-        # camera, i.e. dot(n, view_ray = centroid) < 0.
-        n_dot_c = np.einsum('ij,ij->i', n, centroid)
-        in_front = (tri[:, :, 2] > NEAR_Z).all(axis=1)
-        keep = (n_dot_c < 0) & in_front
+        # backface cull. Perspective: front-facing means the normal points
+        # back toward the camera at the origin, i.e. dot(n, view_ray =
+        # centroid) < 0 (no normalize needed — only the sign matters).
+        # Orthographic: the view ray is constant +z, so the test reduces to
+        # n_z < 0, and nothing can sit "behind the camera".
+        persp = self.projection == 'perspective'
+        if persp:
+            n_dot_c = np.einsum('ij,ij->i', n, centroid)
+            in_front = (tri[:, :, 2] > NEAR_Z).all(axis=1)
+            keep = (n_dot_c < 0) & in_front
+        else:
+            keep = n[:, 2] < 0
         if not keep.any():
             return
 
@@ -349,11 +371,15 @@ class Painter3DCanvas(QWidget):
         palette_idx = (color_k * N_LAMBERT_BINS + bin_idx).tolist()
 
         # project all unique verts to screen and cache QPointF per vertex.
-        # Behind-camera verts get junk coordinates but kept faces never
-        # reference them (in_front filter), so nothing draws those.
-        z_safe = np.where(eye[:, 2] > NEAR_Z, eye[:, 2], 1.0)
-        sx = (w * 0.5 + focal * eye[:, 0] / z_safe).tolist()
-        sy = (h * 0.5 - focal * eye[:, 1] / z_safe).tolist()
+        if persp:
+            # Behind-camera verts get junk coordinates but kept faces never
+            # reference them (in_front filter), so nothing draws those.
+            z_safe = np.where(eye[:, 2] > NEAR_Z, eye[:, 2], 1.0)
+            sx = (w * 0.5 + focal * eye[:, 0] / z_safe).tolist()
+            sy = (h * 0.5 - focal * eye[:, 1] / z_safe).tolist()
+        else:
+            sx = (w * 0.5 + focal * eye[:, 0]).tolist()
+            sy = (h * 0.5 - focal * eye[:, 1]).tolist()
         pts = [QPointF(x, y) for x, y in zip(sx, sy)]
 
         faces_list = faces_k.tolist()
@@ -371,18 +397,26 @@ class Painter3DCanvas(QWidget):
         if not self._bonds or len(self._atom_pos) == 0:
             return
         eye = (self._atom_pos - self._target) @ R.T + cam_offset
+        persp = self.projection == 'perspective'
         pen = QPen(BOND_COLOR)
         pen.setCapStyle(Qt.RoundCap)
         for i, j in self._bonds:
             za, zb = eye[i, 2], eye[j, 2]
-            if za <= NEAR_Z or zb <= NEAR_Z:
-                continue
-            sx_a = w * 0.5 + focal * eye[i, 0] / za
-            sy_a = h * 0.5 - focal * eye[i, 1] / za
-            sx_b = w * 0.5 + focal * eye[j, 0] / zb
-            sy_b = h * 0.5 - focal * eye[j, 1] / zb
-            z_mid = 0.5 * (za + zb)
-            tk = max(mr.BOND_RADIUS * focal / z_mid, 1.5)
+            if persp:
+                if za <= NEAR_Z or zb <= NEAR_Z:
+                    continue
+                sx_a = w * 0.5 + focal * eye[i, 0] / za
+                sy_a = h * 0.5 - focal * eye[i, 1] / za
+                sx_b = w * 0.5 + focal * eye[j, 0] / zb
+                sy_b = h * 0.5 - focal * eye[j, 1] / zb
+                z_mid = 0.5 * (za + zb)
+                tk = max(mr.BOND_RADIUS * focal / z_mid, 1.5)
+            else:
+                sx_a = w * 0.5 + focal * eye[i, 0]
+                sy_a = h * 0.5 - focal * eye[i, 1]
+                sx_b = w * 0.5 + focal * eye[j, 0]
+                sy_b = h * 0.5 - focal * eye[j, 1]
+                tk = max(mr.BOND_RADIUS * focal, 1.5)
             pen.setWidthF(tk)
             painter.setPen(pen)
             painter.drawLine(QPointF(sx_a, sy_a), QPointF(sx_b, sy_b))
@@ -391,17 +425,23 @@ class Painter3DCanvas(QWidget):
         if len(self._atom_pos) == 0:
             return
         eye = (self._atom_pos - self._target) @ R.T + cam_offset
+        persp = self.projection == 'perspective'
         order = np.argsort(-eye[:, 2])     # far ones first
         pen = QPen(ATOM_OUTLINE)
         pen.setWidthF(0.5)
         painter.setPen(pen)
         for k in order:
             z = eye[k, 2]
-            if z <= NEAR_Z:
-                continue
-            sx = w * 0.5 + focal * eye[k, 0] / z
-            sy = h * 0.5 - focal * eye[k, 1] / z
-            rs = self._atoms[k]['radius'] * focal / z
+            if persp:
+                if z <= NEAR_Z:
+                    continue
+                sx = w * 0.5 + focal * eye[k, 0] / z
+                sy = h * 0.5 - focal * eye[k, 1] / z
+                rs = self._atoms[k]['radius'] * focal / z
+            else:
+                sx = w * 0.5 + focal * eye[k, 0]
+                sy = h * 0.5 - focal * eye[k, 1]
+                rs = self._atoms[k]['radius'] * focal
             if rs < 0.5:
                 continue
             base = QColor(self._atoms[k]['color'])

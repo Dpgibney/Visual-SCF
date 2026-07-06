@@ -70,6 +70,135 @@ class MolNode(Node):
         if self._built:
             self.build()
 
+class GeomOptNode(Node):
+    """<p><b>Optimize Geometry</b> — relaxes the structure to the nearest
+    minimum of the potential energy surface: the arrangement of nuclei
+    where all forces vanish.</p>
+    <p>Uses PySCF's analytic nuclear gradients with the geomeTRIC optimizer
+    (quasi-Newton steps in internal coordinates). Leave <b>XC
+    Functional</b> blank to optimize on the Hartree&ndash;Fock surface, or
+    enter a functional (<tt>pbe</tt>, <tt>b3lyp</tt>, ...) for DFT.
+    Optimization runs a full SCF at every step, so it only recomputes on
+    <b>Run</b>; the per-step energies appear in the console and the status
+    line reports convergence.</p>
+    <p>After a run the node shows the optimization trajectory: drag the
+    step slider (or press Play) to watch the geometry walk downhill to the
+    minimum, with an energy-vs-step curve overlaid on the 3D view.
+    Left-drag rotates, scroll zooms.</p>
+    <p><b>Input</b> &mdash; Molecule (charge, spin, and basis are kept).<br>
+    <b>Outputs</b> &mdash; Optimized Molecule: a new molecule at the
+    relaxed geometry, usable anywhere a Molecule is; Energy: the final
+    total energy in Hartree.</p>"""
+
+    title = 'Optimize Geometry'
+    tags = ['Geometry']
+    init_inputs = [NodeInputType(label='Molecule')]
+    init_outputs = [NodeOutputType(label='Optimized Molecule'),
+                    NodeOutputType(label='Energy')]
+
+    def __init__(self, params):
+        super().__init__(params)
+        self.xc = ''  # empty string = HF; any non-empty = DFT XC functional name
+        self.maxsteps = 100
+        self._has_run = False
+        # set by rebuilt() when the project was saved post-run but upstream
+        # hasn't repropagated yet; consumed by update_event.
+        self._rerun_on_ready = False
+
+    def inputs_ready(self):
+        return hasattr(self.input(0), 'payload')
+
+    def _status(self, text):
+        if hasattr(self, 'gui'):
+            self.gui.set_status(text)
+
+    def run(self):
+        from pyscf.geomopt.geometric_solver import GeometryOptimizer
+        if not self.inputs_ready():
+            return
+
+        # Optimize on a silenced copy: every optimizer step runs a full SCF,
+        # and with the upstream molecule's verbose=5 the console would drown
+        # in SCF logs. geomeTRIC's one-line-per-step output still shows the
+        # energy trajectory.
+        mol_in = self.input(0).payload
+        mol = mol_in.copy()
+        mol.verbose = 0
+
+        if self.xc:
+            mf = dft.RKS(mol)
+            mf.xc = self.xc
+        else:
+            mf = scf.RHF(mol)
+
+        # (coords in Bohr, energy) per optimizer cycle — the callback locals
+        # of PySCFEngine.calc_new expose both.
+        trajectory = []
+        opt = GeometryOptimizer(mf)
+        opt.callback = lambda envs: trajectory.append(
+            (envs['coords'].copy(), envs['energy']))
+        opt.max_cycle = self.maxsteps
+        try:
+            opt.kernel()
+        except Exception as e:
+            self._status(f'optimization failed: {e}')
+            return
+
+        self._has_run = True
+        mol_opt = opt.mol
+        # restore the input molecule's verbosity so calculations derived
+        # from the optimized molecule log to the console as usual.
+        mol_opt.verbose = mol_in.verbose
+        e_final = trajectory[-1][1] if trajectory else float('nan')
+        if opt.converged:
+            self._status(f'converged in {len(trajectory)} steps, '
+                         f'E = {e_final:.6f} Ha')
+        else:
+            self._status(f'NOT converged after {len(trajectory)} steps, '
+                         f'E = {e_final:.6f} Ha')
+        if hasattr(self, 'gui'):
+            self.gui.show_trajectory(mol_opt, trajectory)
+        self.set_output_val(0, MolData(mol_opt))
+        self.set_output_val(1, Data(e_final))
+
+    def update_event(self, inp=-1):
+        # A changed input geometry invalidates the previous result, but the
+        # (expensive) reoptimization is gated behind the Run button.
+        # Exception: a pending rerun queued by rebuilt() fires once the
+        # inputs come back.
+        if self._rerun_on_ready and self.inputs_ready():
+            self._rerun_on_ready = False
+            self.run()
+        else:
+            self._status('inputs changed — press Run')
+
+    def have_gui(self):
+        return hasattr(self, 'gui')
+
+    def get_state(self):
+        return {
+            'xc': self.xc,
+            'maxsteps': self.maxsteps,
+            'has_run': self._has_run,
+        }
+
+    def set_state(self, data, version):
+        self.xc = data.get('xc', '')
+        self.maxsteps = data.get('maxsteps', 100)
+        self._has_run = data.get('has_run', False)
+
+    def rebuilt(self):
+        # Re-run only if the user had run this node before saving; defer to
+        # update_event if upstream hasn't repropagated yet (rebuilt order
+        # isn't guaranteed).
+        if not self._has_run:
+            return
+        if self.inputs_ready():
+            self.run()
+        else:
+            self._rerun_on_ready = True
+
+
 class FockNode(Node):
     """<p><b>Fock</b> — builds the effective one-electron (Fock) matrix
     F[D] = h<sub>core</sub> + J[D] &minus; &frac12;K[D] for the density
@@ -691,6 +820,7 @@ class SCFStepNode(Node):
 
 export_nodes([
     MolNode,
+    GeomOptNode,
     RHFNode,
     UHFNode,
     RKSNode,

@@ -30,3 +30,4 @@ scipy==1.17.1
 matplotlib==3.10.9
 scikit-image==0.26.0
 h5py==3.16.0
+geometric==1.1.1  # geometry optimizer backend for pyscf.geomopt (GeomOptNode)

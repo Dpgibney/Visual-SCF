@@ -50,11 +50,13 @@ native Qt platform.
 
 The repo registers three nodes packages with Ryven:
 
-- `pyscf/` — `Molecule`, `Guess 1-RDM`, `Fock`, `Get MO Coefficients`,
-  `Make 1-RDM`, `SCF Step` (the iterator that closes the SCF loop), plus
-  high-level `RHF` / `UHF` / `RKS-DFT` / `UKS-DFT` "do everything" nodes
-  and a `CASSCF` node with a selectable active space, optional state
-  averaging, and spin-free or spin-resolved 1-RDM output per root.
+- `pyscf/` — `Molecule`, `Optimize Geometry` (relaxes the structure via
+  analytic gradients + geomeTRIC, on the HF or DFT surface), `Guess 1-RDM`,
+  `Fock`, `Get MO Coefficients`, `Make 1-RDM`, `SCF Step` (the iterator
+  that closes the SCF loop), plus high-level `RHF` / `UHF` / `RKS-DFT` /
+  `UKS-DFT` "do everything" nodes and a `CASSCF` node with a selectable
+  active space, optional state averaging, and spin-free or spin-resolved
+  1-RDM output per root.
 - `plotting2/` — `Molecular Orbital Plotter`, `Atomic Orbital Plotter`,
   `LinePlot`, `Print`. The orbital plotters render the molecule and
   iso-surface lobes inline inside the node (left-drag to rotate, scroll

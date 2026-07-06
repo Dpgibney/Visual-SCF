@@ -29,7 +29,7 @@ Pin notes that matter when touching `requirements.txt`:
 
 Each of the three top-level directories is a Ryven nodes package, registered separately at launch via `-n` flags. The split is by domain, not layer:
 
-- **`pyscf/`** — quantum chemistry nodes. `MolNode` (Molecule), `Guess1RDMNode`, `FockNode`, `GetMOCoeffNode`, `Make1RDMNode`, `SCFStepNode` (the iterator that closes the SCF feedback loop), plus convenience "do everything" nodes `RHFNode` / `UHFNode` / `RKSNode` / `UKSNode`. `MOCoeffViewerNode` also lives here.
+- **`pyscf/`** — quantum chemistry nodes. `MolNode` (Molecule), `GeomOptNode` (Optimize Geometry, via analytic gradients + geomeTRIC), `Guess1RDMNode`, `FockNode`, `GetMOCoeffNode`, `Make1RDMNode`, `SCFStepNode` (the iterator that closes the SCF feedback loop), plus convenience "do everything" nodes `RHFNode` / `UHFNode` / `RKSNode` / `UKSNode`. `MOCoeffViewerNode` also lives here.
 - **`plotting2/`** — visualization nodes. `MOPlotNode`, `AOPlotNode`, `LinePlotNode`, `PrintNode`. The orbital plotters render the molecule and iso-surface lobes inline inside the node via `qpainter3d.Painter3DCanvas` (pure QPainter, no GL). `molecule_render.py` is the per-atom/per-bond CPK render data shared by both.
 - **`matrices/`** — table viewers. `ShowMOCoeff` and friends, built on `MatrixNodeBase` in `matrices/matrices.py`.
 
@@ -37,6 +37,8 @@ Each package follows the same shape:
 - `nodes.py` — pure-logic `Node` subclasses; ends with `export_nodes([...])` and an `@on_gui_load` hook that does `from . import gui`. Nothing in `nodes.py` may import Qt — it must be importable in headless contexts.
 - `gui.py` — the Qt widgets (`NodeMainWidget` subclasses) and `@node_gui(NodeClass)` bindings. This is where PySide6 / matplotlib / `qpainter3d` live.
 - `mathinspector.py` (pyscf and plotting2 only) — rendered-LaTeX equation panels for the inspector dock. `EQUATIONS` maps node class names to rows of `('t', html)` captions and `('e', latex)` equations; `equation_inspector('<NodeClass>')` builds the `NodeInspectorWidget` subclass that `gui.py` attaches via `inspector_widget_class` + `wrap_inspector_in_default = True`. Equations render through matplotlib **mathtext** (no TeX install; no `\tfrac`, no environments — one line per entry). The renderer half of the two copies is intentionally duplicated (packages can't reliably cross-import); keep them in sync.
+
+Cross-package imports are one-way: other packages' `gui.py` may `from plotting2.qpainter3d import ...` (the Visual-SCF root is on `sys.path` and `plotting2` collides with nothing — `GeomOptWidget`'s trajectory canvas does this), but never import the local `pyscf` package from outside it — that name is shadowed by the PySCF library and only resolves through pkgutil path extension.
 
 Node docstrings are user-facing: Ryven shows `__doc__` as the add-node-list tooltip and in the inspector's description area, both rendered as Qt rich text. Write them as HTML starting with `<p>` (Qt's rich-text sniffing keys on the leading tag), using the Qt subset only (`<p> <b> <i> <tt> <br> <sub> <sup>`, entities). Every exported node must have one.
 
@@ -59,7 +61,7 @@ Conventions repeated across nodes — match them when adding new ones:
 
 `plotting2/nodes.py::get_isosurface` and `_eval_mo_grid` are shared by `MOPlotNode` and `AOPlotNode`; the AO plotter calls them with `np.eye(nao)` so column k picks out AO #k. Both accept a `grid_points` kwarg threaded through from the widget's "Grid points" QSpinBox — that's the user-facing perf knob.
 
-The 3D rendering lives in `plotting2/qpainter3d.py::Painter3DCanvas`. It's a `QWidget` with a custom `paintEvent`: a per-frame painter's-algorithm pipeline that vectorizes projection, backface culling, and Lambert shading via numpy, then iterates `QPainter.drawPolygon` for triangles, `drawLine` for bonds, and `QRadialGradient`-filled `drawEllipse` for atoms. There is no GL surface — the canvas embeds inside Ryven's `QGraphicsScene` like any other QWidget. Atoms and bonds are drawn *over* the lobes (not depth-sorted against them) — this is intentional so nuclei stay visible through translucent orbitals.
+The 3D rendering lives in `plotting2/qpainter3d.py::Painter3DCanvas`. It's a `QWidget` with a custom `paintEvent`: a per-frame painter's-algorithm pipeline that vectorizes projection, backface culling, and Lambert shading via numpy, then iterates `QPainter.drawPolygon` for triangles, `drawLine` for bonds, and `QRadialGradient`-filled `drawEllipse` for atoms. Projection is **orthographic** by default (wheel = uniform zoom via the `_distance` state); the class attribute `projection = 'perspective'` restores the pinhole camera, whose distance-coupled focal length makes the wheel a dolly-zoom instead. There is no GL surface — the canvas embeds inside Ryven's `QGraphicsScene` like any other QWidget. Atoms and bonds are drawn *over* the lobes (not depth-sorted against them) — this is intentional so nuclei stay visible through translucent orbitals.
 
 Distances throughout the rendering code are in **Bohr** (matching `pyscf.gto.M` defaults), not Ångström.
 
